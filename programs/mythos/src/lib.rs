@@ -1,7 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("MythosLend1111111111111111111111111111111111");
+declare_id!("FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM");
+
+
 
 /// ============================================================================
 /// MYTHOS — AI-Native Agentic Lending Protocol
@@ -143,20 +145,26 @@ pub mod mythos {
     /// Borrower repays the loan (principal + interest).
     /// Collateral is released back to the borrower upon full repayment.
     pub fn repay_loan(ctx: Context<RepayLoan>, amount_usdc: u64) -> Result<()> {
+        // Extract all values BEFORE mutable borrow to satisfy borrow checker
+        let loan_key        = ctx.accounts.loan.key();
+        let loan_bump       = ctx.accounts.loan.bump;
+        let collateral_amt  = ctx.accounts.loan.collateral_amount;
+        let loan_acct_info  = ctx.accounts.loan.to_account_info();
+        let loan_status     = ctx.accounts.loan.status.clone();
+        let borrower_key    = ctx.accounts.loan.borrower;
+        let lender_key      = ctx.accounts.loan.lender;
+        let principal       = ctx.accounts.loan.amount_usdc;
+        let rate_bps        = ctx.accounts.loan.final_rate_bps;
+        let term_months     = ctx.accounts.loan.term_months;
+
         let loan = &mut ctx.accounts.loan;
         let clock = Clock::get()?;
 
-        require!(loan.status == LoanStatus::Active, MythosError::LoanNotActive);
-        require!(ctx.accounts.borrower.key() == loan.borrower, MythosError::Unauthorized);
+        require!(loan_status == LoanStatus::Active, MythosError::LoanNotActive);
+        require!(ctx.accounts.borrower.key() == borrower_key, MythosError::Unauthorized);
 
-        // Calculate total repayment: principal + interest
-        let interest_amount = calculate_interest(
-            loan.amount_usdc,
-            loan.final_rate_bps,
-            loan.term_months,
-        );
-        let total_due = loan.amount_usdc + interest_amount;
-        
+        let interest_amount = calculate_interest(principal, rate_bps, term_months);
+        let total_due = principal + interest_amount;
         require!(amount_usdc >= total_due, MythosError::InsufficientRepayment);
 
         // Transfer USDC from borrower to lender
@@ -170,76 +178,79 @@ pub mod mythos {
         );
         token::transfer(transfer_ctx, total_due)?;
 
-        // Release collateral back to borrower
-        let loan_key = loan.key();
-        let seeds = &[b"collateral", loan_key.as_ref(), &[loan.bump]];
+        // Release collateral — use pre-extracted account_info (before mut borrow)
+        let seeds = &[b"collateral", loan_key.as_ref(), &[loan_bump]];
         let signer = &[&seeds[..]];
-        
         let release_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
                 from: ctx.accounts.collateral_vault.to_account_info(),
                 to: ctx.accounts.borrower_collateral_account.to_account_info(),
-                authority: ctx.accounts.loan.to_account_info(),
+                authority: loan_acct_info,
             },
-            signer
+            signer,
         );
-        token::transfer(release_ctx, loan.collateral_amount)?;
+        token::transfer(release_ctx, collateral_amt)?;
 
-        loan.status = LoanStatus::Repaid;
+        loan.status   = LoanStatus::Repaid;
         loan.repaid_at = clock.unix_timestamp;
 
         emit!(LoanRepaid {
-            loan_id: loan.key(),
-            borrower: loan.borrower,
-            lender: loan.lender,
+            loan_id: loan_key,
+            borrower: borrower_key,
+            lender: lender_key,
             amount_repaid: total_due,
             interest_paid: interest_amount,
             timestamp: clock.unix_timestamp,
         });
 
-        msg!("Mythos: Loan repaid — {} USDC ({}  interest)", total_due, interest_amount);
+        msg!("Mythos: Loan repaid — {} USDC ({} interest)", total_due, interest_amount);
         Ok(())
     }
 
     /// Liquidate an undercollateralized or overdue loan.
     /// Anyone can call this to maintain protocol health.
     pub fn liquidate(ctx: Context<Liquidate>) -> Result<()> {
+        // Extract all values BEFORE mutable borrow
+        let loan_key       = ctx.accounts.loan.key();
+        let loan_bump      = ctx.accounts.loan.bump;
+        let collateral_amt = ctx.accounts.loan.collateral_amount;
+        let loan_acct_info = ctx.accounts.loan.to_account_info();
+        let loan_status    = ctx.accounts.loan.status.clone();
+        let due_at         = ctx.accounts.loan.due_at;
+        let borrower_key   = ctx.accounts.loan.borrower;
+        let lender_key     = ctx.accounts.loan.lender;
+
         let loan = &mut ctx.accounts.loan;
         let clock = Clock::get()?;
 
-        require!(loan.status == LoanStatus::Active, MythosError::LoanNotActive);
+        require!(loan_status == LoanStatus::Active, MythosError::LoanNotActive);
 
-        // Check if overdue
-        let is_overdue = clock.unix_timestamp > loan.due_at;
-        // Note: collateral value check would use Jupiter oracle in production
-        let is_undercollateralized = false; // Simplified for hackathon
-
+        let is_overdue = clock.unix_timestamp > due_at;
+        let is_undercollateralized = false; // Jupiter oracle check in production
         require!(is_overdue || is_undercollateralized, MythosError::NotLiquidatable);
 
-        // Transfer collateral to lender as compensation
-        let loan_key = loan.key();
-        let seeds = &[b"collateral", loan_key.as_ref(), &[loan.bump]];
+        // Seize collateral — use pre-extracted account_info
+        let seeds = &[b"collateral", loan_key.as_ref(), &[loan_bump]];
         let signer = &[&seeds[..]];
-
         let liquidate_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
                 from: ctx.accounts.collateral_vault.to_account_info(),
                 to: ctx.accounts.lender_collateral_account.to_account_info(),
-                authority: ctx.accounts.loan.to_account_info(),
+                authority: loan_acct_info,
             },
-            signer
+            signer,
         );
-        token::transfer(liquidate_ctx, loan.collateral_amount)?;
+        token::transfer(liquidate_ctx, collateral_amt)?;
 
         loan.status = LoanStatus::Liquidated;
 
         emit!(LoanLiquidated {
-            loan_id: loan.key(),
-            borrower: loan.borrower,
-            lender: loan.lender,
-            collateral_seized: loan.collateral_amount,
+            loan_id: loan_key,
+            borrower: borrower_key,
+            lender: lender_key,
+            collateral_seized: collateral_amt,
             reason: if is_overdue { "overdue" } else { "undercollateralized" }.to_string(),
             timestamp: clock.unix_timestamp,
         });

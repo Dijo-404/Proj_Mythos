@@ -300,9 +300,117 @@ Proj_Mythos/
     └── pages/MythosPage.tsx        # Main hackathon demo page
 ```
 
+
 ---
 
-## 🌐 Deployment
+## 🚀 Live Deployment — Solana Devnet
+
+> **The Mythos program is deployed and live on Solana Devnet.**
+
+| | |
+|---|---|
+| **Program ID** | `FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM` |
+| **Network** | Solana **Devnet** |
+| **Deploy Wallet** | `61m3ESHMhzDygAUWkSyXTCBr6Jy9gSnSF3Dqm6fxhg6s` |
+| **Deploy TX** | [`3twz9fk...`](https://explorer.solana.com/tx/3twz9fkqZWktXGXukqGZqrwJLpY41A8iLmjyPN3TwWP4J4fobtUYNZPbshxkS6cdDqCAAT8t3xVFE8zw3y5TBrig?cluster=devnet) |
+| **Deployed Slot** | `456903617` |
+| **View on Solscan** | [solscan.io/account/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet](https://solscan.io/account/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet) |
+| **View on Explorer** | [explorer.solana.com/address/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet](https://explorer.solana.com/address/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet) |
+| **Anchor Version** | 1.0.0 |
+| **Deploy Toolchain** | Rust stable 1.95 + cargo-build-sbf (Agave 3.1.13) |
+
+### Instructions in the Anchor Program
+
+| Instruction | Description |
+|---|---|
+| `initialize_loan` | Borrower opens loan — locks SPL collateral in PDA vault |
+| `accept_loan` | Luna (lender agent) accepts terms — disburses USDC to borrower |
+| `repay_loan` | Borrower repays principal + interest — collateral released |
+| `liquidate` | Seize collateral on overdue/undercollateralized loan |
+
+### Redeploy from Source
+
+```bash
+# Prerequisites: Solana CLI + Rust stable + cargo-build-sbf
+
+# 1. Build the program
+cargo-build-sbf --manifest-path programs/mythos/Cargo.toml
+
+# 2. Deploy to Devnet
+solana program deploy \
+  target/deploy/mythos.so \
+  --keypair ~/.config/solana/id.json \
+  --url devnet \
+  --program-id target/deploy/mythos-keypair.json
+
+# 3. Verify
+solana program show FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM --url devnet
+```
+
+### Full Stack Deployment
+
+| Service | Platform | Status |
+|---|---|---|
+| **Anchor Program** | Solana Devnet | ✅ Live |
+| Frontend | Vercel / Netlify | Deploy with `vercel --prod` |
+| Backend | Railway / Render | Deploy with `railway up` |
+
+---
+
+## 🔑 Environment Variables
+
+```env
+# Solana — Devnet (live)
+SOLANA_NETWORK=devnet
+MYTHOS_PROGRAM_ID=FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM
+DEPLOY_WALLET=61m3ESHMhzDygAUWkSyXTCBr6Jy9gSnSF3Dqm6fxhg6s
+
+# Get free API keys:
+HELIUS_API_KEY=your_key_from_helius.dev     # https://helius.dev
+GROQ_API_KEY=your_key_from_console.groq.com # https://console.groq.com
+
+# Protocol
+TREASURY_WALLET=61m3ESHMhzDygAUWkSyXTCBr6Jy9gSnSF3Dqm6fxhg6s
+USDC_MINT=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU  # Devnet USDC
+
+# Frontend
+VITE_API_URL=http://localhost:8000
+VITE_SOLANA_NETWORK=devnet
+VITE_HELIUS_API_KEY=your_helius_key
+VITE_PROGRAM_ID=FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM
+```
+
+See [`.env.example`](.env.example) for all options.
+
+---
+
+## 🏆 Hackathon Alignment
+
+**Solana Hackathon 2026 — Track: Agentic Commerce, Identity, Payments & Stablecoins**
+
+| Criterion | Score | Evidence |
+|---|---|---|
+| Solana scalability | ✅ | Anchor program live on Devnet (`FGG836...`), Helius RPC, <400ms settlement |
+| Composability | ✅ | SAS + Jupiter + x402 + Anchor in one atomic flow |
+| Agentic commerce | ✅ | Lenny & Luna pay each other (M2M) via x402 — zero human clicks |
+| Identity | ✅ | SAS on-chain credit attestation PDAs replace centralized credit bureaus |
+| Stablecoins | ✅ | USDC for x402 micropayments AND loan disbursement |
+| Innovation | ✅ | First DeFi protocol gating AI calls behind x402 USDC micropayments |
+| Technical skill | ✅ | Rust/Anchor + CrewAI + FastAPI + React + Helius — full-stack on Solana |
+| Real-world impact | ✅ | Eliminates human negotiation bottleneck in DeFi lending, M2M agentic economy |
+
+---
+
+<div align="center">
+
+Built with ◎ for the Solana Hackathon 2026
+
+**Program: [`FGG836...`](https://explorer.solana.com/address/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet) | Wallet: [`61m3ES...`](https://explorer.solana.com/address/61m3ESHMhzDygAUWkSyXTCBr6Jy9gSnSF3Dqm6fxhg6s?cluster=devnet)**
+
+**[⬆ Back to Top](#-mythos)**
+
+</div>
+
 
 | Service | Platform |
 |---|---|

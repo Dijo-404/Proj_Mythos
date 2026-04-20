@@ -19,7 +19,7 @@ interface Conversation {
 }
 
 interface L2Status {
-  mode: 'l2' | 'direct' | 'unavailable';
+  mode: 'channel' | 'direct' | 'mock' | 'unavailable' | 'l2';
   connected?: boolean;
   network_state?: string;
   active_negotiations?: number;
@@ -30,8 +30,13 @@ interface WorkflowStep {
   step: number;
   name: string;
   status: string;
-  details: any;
+  details: Record<string, unknown>;
   timestamp: string;
+}
+
+interface SocketMessage {
+  type: string;
+  data?: Record<string, unknown>;
 }
 
 interface WebSocketState {
@@ -86,7 +91,7 @@ export function useWebSocket() {
 
       wsRef.current.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message = JSON.parse(event.data) as SocketMessage;
           handleMessage(message);
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
@@ -116,18 +121,28 @@ export function useWebSocket() {
     }
   }, []);
 
-  const handleMessage = (message: any) => {
+  const handleMessage = (message: SocketMessage) => {
     switch (message.type) {
       case 'connected':
         console.log('WebSocket connection confirmed');
         break;
 
       case 'agent_status':
+        {
+        const statusValue = message.data?.status;
+        const status: AgentStatus['status'] =
+          statusValue === 'idle' || statusValue === 'negotiating' || statusValue === 'analyzing'
+            ? statusValue
+            : 'idle';
+        const task = typeof message.data?.task === 'string' ? message.data.task : undefined;
+        const agentData: AgentStatus = task ? { status, task } : { status };
+
         setState(prev => ({
           ...prev,
-          agentStatus: message.data,
-          stats: { ...prev.stats, agentStatus: message.data.status }
+          agentStatus: agentData,
+          stats: { ...prev.stats, agentStatus: agentData.status }
         }));
+        }
         break;
 
       case 'conversation_update':
@@ -135,32 +150,64 @@ export function useWebSocket() {
         fetchLatestConversation();
         break;
 
+      case 'workflow_channel_status':
       case 'l2_status':
-      case 'hydra_status': // Keep backward compatibility
+        {
+          const channelData = message.data ?? {};
+          const incomingMode = String(channelData.mode ?? 'unavailable');
+          const modeValue = incomingMode === 'hydra' || incomingMode === 'l2'
+            ? 'channel'
+            : incomingMode;
+          const normalizedMode: L2Status['mode'] =
+            modeValue === 'channel' ||
+            modeValue === 'direct' ||
+            modeValue === 'mock' ||
+            modeValue === 'l2' ||
+            modeValue === 'unavailable'
+              ? modeValue
+              : 'unavailable';
+
         setState(prev => ({
           ...prev,
           l2Status: {
-            mode: message.data.mode === 'hydra' ? 'l2' : message.data.mode,
-            connected: message.data.connected,
-            network_state: message.data.head_state || message.data.network_state,
-            active_negotiations: message.data.active_negotiations,
-            current_session_id: message.data.current_head_id || message.data.current_session_id
+            mode: normalizedMode,
+            connected: channelData.connected as boolean | undefined,
+            network_state: (channelData.head_state as string | undefined) || (channelData.network_state as string | undefined),
+            active_negotiations: channelData.active_negotiations as number | undefined,
+            current_session_id: (channelData.current_head_id as string | undefined) || (channelData.current_session_id as string | undefined)
           }
         }));
+        }
         break;
 
       case 'workflow_step':
+        {
+        const stepData = message.data ?? {};
+        const workflowStep: WorkflowStep = {
+          step: Number(stepData.step ?? 0),
+          name: typeof stepData.name === 'string' ? stepData.name : 'Unknown Step',
+          status: typeof stepData.status === 'string' ? stepData.status : 'unknown',
+          details: stepData.details && typeof stepData.details === 'object'
+            ? (stepData.details as Record<string, unknown>)
+            : {},
+          timestamp: typeof stepData.timestamp === 'string' ? stepData.timestamp : new Date().toISOString(),
+        };
+
         setState(prev => ({
           ...prev,
-          workflowSteps: [...prev.workflowSteps.slice(-9), message.data] // Keep last 10 steps
+          workflowSteps: [...prev.workflowSteps.slice(-9), workflowStep] // Keep last 10 steps
         }));
+        }
         break;
 
       case 'stats_update':
+        {
+        const statsData = (message.data ?? {}) as Partial<WebSocketState['stats']>;
         setState(prev => ({
           ...prev,
-          stats: { ...prev.stats, ...message.data }
+          stats: { ...prev.stats, ...statsData }
         }));
+        }
         break;
 
       case 'workflow_started':

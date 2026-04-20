@@ -44,7 +44,7 @@ class HeliusClient:
     @property
     def api_key(self):
         return self._api_key
-    
+
     @api_key.setter
     def api_key(self, value):
         self._api_key = value
@@ -58,7 +58,7 @@ class HeliusClient:
         """Get account info for a Solana address."""
         if self.demo_mode:
             return self._mock_account_info(pubkey)
-        
+
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(self.rpc_url, json={
                 "jsonrpc": "2.0",
@@ -169,12 +169,12 @@ class HeliusClient:
         """
         Register a Helius webhook to monitor Mythos loan accounts.
         Webhooks fire when the watched addresses are involved in confirmed txs.
-        
+
         Returns: webhook_id or None if failed
         """
         if self.demo_mode:
             webhook_id = f"webhook_demo_{int(datetime.utcnow().timestamp())}"
-            print(f"[Helius] 🪝 Demo webhook registered: {webhook_id}")
+            print(f"[Helius][DEMO] Webhook registered: {webhook_id}")
             print(f"[Helius]    Watching {len(account_addresses)} accounts")
             return webhook_id
 
@@ -194,10 +194,10 @@ class HeliusClient:
             if resp.status_code in (200, 201):
                 data = resp.json()
                 webhook_id = data.get("webhookID")
-                print(f"[Helius] ✅ Webhook registered: {webhook_id}")
+                print(f"[Helius][OK] Webhook registered: {webhook_id}")
                 return webhook_id
             else:
-                print(f"[Helius] ❌ Webhook registration failed: {resp.text}")
+                print(f"[Helius][ERROR] Webhook registration failed: {resp.text}")
                 return None
 
     async def parse_webhook_event(self, event: Dict) -> Dict:
@@ -246,7 +246,7 @@ class HeliusClient:
         In production: this would be driven by Helius webhook callbacks.
         """
         import random
-        
+
         event_types = [
             ("loan_initialized", "Lenny requested a $1,000 USDC loan"),
             ("attestation_verified", "SAS credit attestation verified (Tier A)"),
@@ -256,11 +256,11 @@ class HeliusClient:
             ("payment_x402", "Lenny paid 0.001 USDC via x402 for AI service"),
             ("jupiter_price_check", "Jupiter: SOL/USD = $180.50 (+2.3%)"),
         ]
-        
+
         while True:
             await asyncio.sleep(interval)
             event_type, message = random.choice(event_types)
-            
+
             event = {
                 "type": "helius_event",
                 "data": {
@@ -328,7 +328,7 @@ helius_client = HeliusClient()
 async def get_solana_network_stats() -> Dict[str, Any]:
     """Get current Solana network statistics for the dashboard."""
     slot = await helius_client.get_slot()
-    
+
     sol_price = await helius_client.get_token_price(
         "So11111111111111111111111111111111111111112"
     ) or 180.50

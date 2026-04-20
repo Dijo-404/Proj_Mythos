@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { useWallet } from '@/hooks/useWallet';
 import { Wallet, Copy, Check, Edit2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { WalletName } from '@/lib/wallet/ethereum-wallet';
+
+type WalletName = string;
 
 interface WalletConnectionProps {
     onAddressChange?: (address: string) => void;
@@ -86,11 +87,11 @@ export function WalletConnection({ onAddressChange, defaultAddress }: WalletConn
 
     // Wallet icons mapping
     const walletIcons: Record<string, string> = {
-        metamask: '🦊',
-        coinbase: '🔵',
-        walletconnect: '🔗',
-        trust: '🛡️',
-        rainbow: '🌈',
+        metamask: 'MM',
+        coinbase: 'CB',
+        walletconnect: 'WC',
+        trust: 'TR',
+        rainbow: 'RB',
     };
 
     return (
@@ -134,8 +135,8 @@ export function WalletConnection({ onAddressChange, defaultAddress }: WalletConn
                             <Label className="text-xs font-medium text-muted-foreground">Address</Label>
                             <div className="flex items-center gap-2">
                                 <Input
-                                    value={isValidAddress(currentAddress) 
-                                        ? currentShortAddress 
+                                    value={isValidAddress(currentAddress)
+                                        ? currentShortAddress
                                         : 'Invalid address format'}
                                     readOnly
                                     className={`font-mono text-sm bg-background/50 flex-1 ${
@@ -192,7 +193,7 @@ export function WalletConnection({ onAddressChange, defaultAddress }: WalletConn
                                         disabled={isConnecting}
                                         className={`justify-start ${wallet.name === 'metamask' ? 'bg-primary text-primary-foreground' : ''}`}
                                     >
-                                        <span className="mr-2">{walletIcons[wallet.name] || '💳'}</span>
+                                        <span className="mr-2">{walletIcons[wallet.name] || 'W'}</span>
                                         {wallet.displayName}
                                         {wallet.name === 'metamask' && (
                                             <span className="ml-auto text-xs opacity-75">Recommended</span>
@@ -250,7 +251,7 @@ export function WalletConnection({ onAddressChange, defaultAddress }: WalletConn
                                         <p className="font-medium">Troubleshooting:</p>
                                         <ol className="list-decimal list-inside space-y-1 ml-2">
                                             <li>Check your MetaMask extension - look for a connection notification</li>
-                                            <li>Click on the MetaMask icon (🦊) in your browser toolbar</li>
+                                            <li>Click on the MetaMask extension icon in your browser toolbar</li>
                                             <li>Approve the connection request if you see one</li>
                                             <li>Make sure MetaMask is unlocked</li>
                                         </ol>

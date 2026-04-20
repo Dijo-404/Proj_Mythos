@@ -22,7 +22,7 @@ interface MarketCardProps {
 }
 
 // Stablecoin symbols for logo rendering
-const STABLECOIN_SYMBOLS: Stablecoin[] = ['USDC', 'DAI', 'USDT', 'TUSD', 'BUSD', 'USDD'];
+const STABLECOIN_SYMBOLS: Stablecoin[] = ['USDC', 'PYUSD', 'USDT'];
 
 // Market Card Component with supply/borrow handlers
 function MarketCard({ asset, index, onSupply, onBorrow }: MarketCardProps) {

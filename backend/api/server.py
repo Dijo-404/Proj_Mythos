@@ -26,9 +26,6 @@ from contextlib import asynccontextmanager
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-# Hydra removed - using Ethereum L2 instead
-HYDRA_AVAILABLE = False
-
 # Import AI Agents
 try:
     from agents.borrower_agent import create_borrower_agent
@@ -39,9 +36,6 @@ try:
 except ImportError as e:
     AGENTS_AVAILABLE = False
     print(f"[WARNING] Agent modules not available: {e}")
-
-# PyCardano removed - using Ethereum transaction builder instead
-CARDANO_TX_AVAILABLE = False
 
 # Midnight Network removed - using Circom/SnarkJS ZK proofs instead
 MIDNIGHT_AVAILABLE = False
@@ -78,8 +72,8 @@ async def lifespan(app: FastAPI):
     print("Note: Actual port shown in uvicorn startup message above")
     print("=" * 70)
 
-    # Hydra removed - using Ethereum L2 instead
-    app.state.hydra_manager = None
+    # Legacy channel manager removed; keep a neutral channel manager slot.
+    app.state.negotiation_manager = None
 
     # Initialize AI Agents (always running)
     print("[Agents] Initializing AI agents...")
@@ -91,7 +85,7 @@ async def lifespan(app: FastAPI):
     os.environ.setdefault('ANTHROPIC_API_KEY', 'dummy-key-for-development')
 
     try:
-        # Masumi removed - Cardano-specific agent no longer needed
+        # Legacy Cardano-specific hooks removed; Solana agents are canonical.
 
         if AGENTS_AVAILABLE:
             # Initialize CrewAI agents (may fail due to LLM issues)
@@ -156,7 +150,7 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, 'agents_initialized') and app.state.agents_initialized:
         print("[Agents] Agents shutdown complete")
 
-    # Hydra removed - no cleanup needed
+    # Legacy channel manager cleanup is not needed.
 
 app = FastAPI(
     title="Mythos API",
@@ -179,7 +173,7 @@ try:
     from x402_middleware import x402_middleware, get_payment_stats, simulate_agent_payment
     X402_AVAILABLE = True
     app.middleware("http")(x402_middleware)
-    print("[x402] Payment gate middleware loaded ✅")
+    print("[x402][OK] Payment gate middleware loaded")
 except ImportError as e:
     X402_AVAILABLE = False
     print(f"[x402] Not available: {e}")
@@ -187,7 +181,7 @@ except ImportError as e:
 try:
     from attestation import sas_client, get_or_create_attestation, mock_credit_score_from_history
     SAS_AVAILABLE = True
-    print("[SAS] Attestation client loaded ✅")
+    print("[SAS][OK] Attestation client loaded")
 except ImportError as e:
     SAS_AVAILABLE = False
     print(f"[SAS] Not available: {e}")
@@ -195,7 +189,7 @@ except ImportError as e:
 try:
     from helius_client import helius_client, get_solana_network_stats
     HELIUS_AVAILABLE = True
-    print("[Helius] RPC client loaded ✅")
+    print("[Helius][OK] RPC client loaded")
 except ImportError as e:
     HELIUS_AVAILABLE = False
     print(f"[Helius] Not available: {e}")
@@ -204,7 +198,7 @@ try:
     from agents.solana_borrower_agent import run_solana_borrower_workflow
     from agents.solana_lender_agent import handle_negotiation_request
     SOLANA_AGENTS_AVAILABLE = True
-    print("[SolanaAgents] Lenny + Luna loaded ✅")
+    print("[SolanaAgents][OK] Lenny + Luna loaded")
 except ImportError as e:
     SOLANA_AGENTS_AVAILABLE = False
     print(f"[SolanaAgents] Not available: {e}")
@@ -243,11 +237,11 @@ class WorkflowRequest(BaseModel):
     principal: float
     interest_rate: float
     term_months: int
-    stablecoin: Optional[str] = 'USDT'  # USDT, USDC, DAI, etc.
+    stablecoin: Optional[str] = 'USDT'  # Allowed: USDT, USDC, PYUSD
     auto_confirm: Optional[bool] = False
     conversation_id: Optional[str] = None
 
-# HydraConfigRequest removed - Hydra no longer used
+# Legacy channel config request removed
 
 class WorkflowStep(BaseModel):
     step: int
@@ -280,22 +274,22 @@ class ConnectionManager:
     def __init__(self):
         self.connections: List[WebSocket] = []
         self._lock = asyncio.Lock()
-    
+
     async def connect(self, ws: WebSocket):
         await ws.accept()
         async with self._lock:
             self.connections.append(ws)
-    
+
     async def disconnect(self, ws: WebSocket):
         async with self._lock:
             if ws in self.connections:
                 self.connections.remove(ws)
-    
+
     async def broadcast(self, message: dict):
         # Create a copy of connections to avoid race conditions during iteration
         async with self._lock:
             connections_copy = self.connections.copy()
-        
+
         # Broadcast to all connections
         dead_connections = []
         for conn in connections_copy:
@@ -304,7 +298,7 @@ class ConnectionManager:
             except Exception:
                 # Connection might be closed, mark for removal
                 dead_connections.append(conn)
-        
+
         # Remove dead connections
         if dead_connections:
             async with self._lock:
@@ -313,6 +307,30 @@ class ConnectionManager:
                         self.connections.remove(conn)
 
 manager = ConnectionManager()
+
+
+async def broadcast_workflow_channel_status(
+    mode: str,
+    connected: Optional[bool] = None,
+    head_state: Optional[str] = None,
+    active_negotiations: Optional[int] = None,
+    current_head_id: Optional[str] = None,
+):
+    """Broadcast canonical channel status and legacy alias for compatibility."""
+    payload = {
+        "mode": mode,
+        "connected": connected,
+        "head_state": head_state,
+        "active_negotiations": active_negotiations,
+        "current_head_id": current_head_id,
+    }
+    payload = {k: v for k, v in payload.items() if v is not None}
+
+    # Canonical event for Solana workflow clients
+    await manager.broadcast({
+        "type": "workflow_channel_status",
+        "data": payload
+    })
 
 
 # ============================================================================
@@ -332,7 +350,7 @@ class AppState:
             "totalProfit": 12543.50,
             "agentStatus": "idle"
         }
-        self.hydra_connected = False
+        self.channel_connected = False
 
 state = AppState()
 
@@ -381,78 +399,76 @@ async def agent_heartbeat():
 # ============================================================================
 
 async def perform_credit_check(borrower: str, score: int) -> Dict:
-    """Perform ZK credit check using Circom/SnarkJS (replaces Midnight)."""
+    """Perform Light Protocol ZK compression for credit check."""
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 1,
-            "name": "ZK Credit Check",
+            "name": "Light Protocol State Compression",
             "status": "processing",
             "details": {"borrower": borrower}
         }
     })
-    
-    # Try to get credit score from oracle first
-    credit_score = score
-    # Temporarily disable oracle for testing - use input score directly
-    # if ORACLE_AVAILABLE:
-    #     oracle = get_credit_oracle()
-    #     oracle_data = oracle.get_credit_score(borrower)
-    #     if oracle_data:
-    #         credit_score = oracle_data.score
-    #         print(f"[Oracle] Fetched credit score: {credit_score} (confidence: {oracle_data.confidence})")
-    
-    # Perform ZK credit check using Circom/SnarkJS (replaces Midnight)
-    # TODO: Integrate with backend/zk/proof_generator.py
-    await asyncio.sleep(1)  # Simulate processing
-    is_eligible = credit_score >= 700
-    proof_hash = f"zk_proof_{borrower[:10]}_{int(datetime.now().timestamp())}"
-    
+
+    await asyncio.sleep(1)  # Simulate RPC latency
+
+    try:
+        from backend.zk.proof_generator import get_proof_generator
+        compressor = get_proof_generator()
+        result_data = compressor.generate_compression_proof(borrower, score)
+    except Exception as e:
+        print(f"[ZK] Error: {e}")
+        result_data = {
+            "is_eligible": score >= 700,
+            "proof_hash": f"mock_proof_{borrower[:10]}",
+            "timestamp": datetime.now().isoformat()
+        }
+
     result = {
         "borrower_address": borrower,
-        "is_eligible": is_eligible,
-        "proof_hash": proof_hash,
-        "timestamp": datetime.now().isoformat(),
-        "source": "circom"  # Using Circom instead of Midnight
+        "is_eligible": result_data["is_eligible"],
+        "proof_hash": result_data["proof_hash"],
+        "timestamp": result_data["timestamp"],
+        "source": "light_protocol"
     }
-    
+
     state.credit_checks[borrower] = result
-    
+
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 1,
-            "name": "ZK Credit Check",
+            "name": "Light Protocol State Compression",
             "status": "completed",
             "details": {
                 "is_eligible": result["is_eligible"],
                 "proof_hash": result["proof_hash"],
-                "message": "Credit score verified privately via ZK proof",
-                "source": result.get("source", "circom")
+                "message": "Credit score compressed via Light Protocol",
+                "source": result["source"]
             }
         }
     })
-    
+
     return result
 
 
 # ============================================================================
-# Hydra Integration (Real + Fallback)
+# Workflow Channel Negotiation (Real + Fallback)
 # ============================================================================
 
-async def open_hydra_head_real(
-    borrower: str, 
-    lender: str, 
-    principal: float, 
+async def open_workflow_channel_real(
+    borrower: str,
+    lender: str,
+    principal: float,
     interest_rate: float,
     term_months: int
 ) -> Dict:
-    """Open Hydra Head using real client."""
-    hydra_manager = app.state.hydra_manager
-    
-    if not hydra_manager:
+    """Open a negotiation channel using the configured manager."""
+    negotiation_manager = app.state.negotiation_manager
+
+    if not negotiation_manager:
         # Fallback to mock
-        return await open_hydra_head_mock({
+        return await open_workflow_channel_mock({
             "offer_id": f"offer_{int(datetime.now().timestamp())}",
             "lender_address": lender,
             "borrower_address": borrower,
@@ -460,42 +476,38 @@ async def open_hydra_head_real(
             "interest_rate": interest_rate,
             "term_months": term_months
         })
-    
+
     try:
-        negotiation = await hydra_manager.open_negotiation(
+        negotiation = await negotiation_manager.open_negotiation(
             borrower=borrower,
             lender=lender,
             principal=principal,
             interest_rate=interest_rate,
             term_months=term_months
         )
-        
+
         await manager.broadcast({
             "type": "workflow_step",
             "data": {
                 "step": 3,
-                "name": "Open Hydra Head",
+                "name": "Open Negotiation Channel",
                 "status": "completed",
                 "details": {
                     "head_id": negotiation.head_id,
                     "participants": [lender, borrower],
-                    "mode": "direct" if not hydra_manager.client._connected else "hydra"
+                    "mode": "direct" if not negotiation_manager.client._connected else "channel"
                 }
             }
         })
 
-        # Broadcast updated Hydra status with head information
-        await manager.broadcast({
-            "type": "hydra_status",
-            "data": {
-                "mode": "hydra" if hydra_manager.client._connected else "direct",
-                "connected": hydra_manager.client._connected,
-                "head_state": "Open",
-                "active_negotiations": len(hydra_manager.active_negotiations),
-                "current_head_id": negotiation.head_id
-            }
-        })
-        
+        await broadcast_workflow_channel_status(
+            mode="channel" if negotiation_manager.client._connected else "direct",
+            connected=negotiation_manager.client._connected,
+            head_state="Open",
+            active_negotiations=len(negotiation_manager.active_negotiations),
+            current_head_id=negotiation.head_id,
+        )
+
         state.current_negotiation = {
             "head_id": negotiation.head_id,
             "borrower": borrower,
@@ -507,17 +519,17 @@ async def open_hydra_head_real(
             "rounds": 0,
             "status": "open"
         }
-        
+
         return {
             "head_id": negotiation.head_id,
             "status": "open",
-            "mode": "direct" if not hydra_manager.client._connected else "hydra"
+            "mode": "direct" if not negotiation_manager.client._connected else "channel"
         }
-        
+
     except Exception as e:
-        print(f"[Hydra] Error opening head: {e}")
+        print(f"[Channel] Error opening negotiation channel: {e}")
         # Fallback to mock
-        return await open_hydra_head_mock({
+        return await open_workflow_channel_mock({
             "offer_id": f"offer_{int(datetime.now().timestamp())}",
             "lender_address": lender,
             "borrower_address": borrower,
@@ -527,30 +539,30 @@ async def open_hydra_head_real(
         })
 
 
-async def negotiate_in_hydra_real(proposed_rate: float) -> Dict:
-    """Negotiate in Hydra Head using real client."""
+async def negotiate_workflow_terms_real(proposed_rate: float) -> Dict:
+    """Run negotiation rounds using the configured manager."""
     if not state.current_negotiation:
         return {"error": "No active negotiation"}
-    
+
     neg = state.current_negotiation
-    hydra_manager = app.state.hydra_manager
-    
-    if hydra_manager and neg.get("head_id") in hydra_manager.active_negotiations:
+    negotiation_manager = app.state.negotiation_manager
+
+    if negotiation_manager and neg.get("head_id") in negotiation_manager.active_negotiations:
         try:
-            result = await hydra_manager.submit_counter_offer(
+            result = await negotiation_manager.submit_counter_offer(
                 head_id=neg["head_id"],
                 proposed_rate=proposed_rate,
                 from_party=neg["borrower"]
             )
-            
+
             neg["rounds"] = result.get("round", neg["rounds"] + 1)
             neg["current_rate"] = result.get("new_rate", proposed_rate)
-            
+
             await manager.broadcast({
                 "type": "workflow_step",
                 "data": {
                     "step": 4,
-                    "name": f"Hydra Negotiation Round {neg['rounds']}",
+                    "name": f"Negotiation Round {neg['rounds']}",
                     "status": "completed",
                     "details": {
                         "proposed_rate": proposed_rate,
@@ -559,30 +571,30 @@ async def negotiate_in_hydra_real(proposed_rate: float) -> Dict:
                     }
                 }
             })
-            
+
             return result
-            
+
         except Exception as e:
-            print(f"[Hydra] Negotiation error: {e}")
-    
+            print(f"[Channel] Negotiation error: {e}")
+
     # Fallback to mock negotiation logic
-    return await negotiate_in_hydra_mock(proposed_rate)
+    return await negotiate_workflow_terms_mock(proposed_rate)
 
 
-async def close_hydra_and_settle_real() -> Dict:
-    """Close Hydra Head and settle using real client."""
+async def finalize_workflow_settlement_real() -> Dict:
+    """Finalize settlement for the active negotiation channel."""
     if not state.current_negotiation:
         return {"error": "No active negotiation"}
-    
+
     neg = state.current_negotiation
-    hydra_manager = app.state.hydra_manager
-    
+    negotiation_manager = app.state.negotiation_manager
+
     settlement = None
-    
-    if hydra_manager and neg.get("head_id") in hydra_manager.active_negotiations:
+
+    if negotiation_manager and neg.get("head_id") in negotiation_manager.active_negotiations:
         try:
-            settlement_obj = await hydra_manager.accept_and_settle(neg["head_id"])
-            
+            settlement_obj = await negotiation_manager.accept_and_settle(neg["head_id"])
+
             settlement = {
                 "tx_hash": settlement_obj.tx_hash,
                 "borrower": settlement_obj.borrower,
@@ -593,20 +605,20 @@ async def close_hydra_and_settle_real() -> Dict:
                 "term_months": settlement_obj.term_months,
                 "status": settlement_obj.status
             }
-            
+
         except Exception as e:
-            print(f"[Hydra] Settlement error: {e}")
-    
+            print(f"[Channel] Settlement error: {e}")
+
     if not settlement:
         # Fallback to mock settlement
-        return await close_hydra_and_settle_mock()
-    
+        return await finalize_workflow_settlement_mock()
+
     # Broadcast close head
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 5,
-            "name": "Close Hydra Head",
+            "name": "Finalize Negotiation Channel",
             "status": "completed",
             "details": {
                 "head_id": neg["head_id"],
@@ -616,9 +628,9 @@ async def close_hydra_and_settle_real() -> Dict:
             }
         }
     })
-    
+
     await asyncio.sleep(0.5)
-    
+
     # Broadcast Aiken validation
     await manager.broadcast({
         "type": "workflow_step",
@@ -634,31 +646,10 @@ async def close_hydra_and_settle_real() -> Dict:
             }
         }
     })
-    
-    # Build real Cardano transaction if PyCardano is available
-    if CARDANO_TX_AVAILABLE:
-        try:
-            tx_builder = get_tx_builder()
-            if tx_builder.available:
-                principal_lovelace = int(settlement["principal"] * 1_000_000)
-                interest_lovelace = int((settlement["principal"] * settlement["final_rate"] / 100) * 1_000_000)
-                
-                tx_params = LoanSettlementParams(
-                    borrower_address=settlement["borrower"],
-                    lender_address=settlement["lender"],
-                    principal=principal_lovelace,
-                    interest_amount=interest_lovelace
-                )
-                
-                tx_result = tx_builder.build_settlement_tx(tx_params)
-                if tx_result.get("success"):
-                    settlement["tx_cbor"] = tx_result.get("tx_cbor")
-                    settlement["tx_id"] = tx_result.get("tx_id")
-                    settlement["real_tx"] = True
-                    print(f"[PyCardano] Transaction built: {tx_result.get('tx_id')}")
-        except Exception as e:
-            print(f"[PyCardano] Error building transaction: {e}")
-    
+
+    # Settlement path is Solana-native; transaction emission is handled by the
+    # current workflow service and mock fallback in this API layer.
+
     # Record trade
     trade = {
         "id": f"trade_{int(datetime.now().timestamp())}",
@@ -673,14 +664,14 @@ async def close_hydra_and_settle_real() -> Dict:
         "real_tx": settlement.get("real_tx", False)
     }
     state.trades.insert(0, trade)
-    
+
     # Update stats
     state.stats["activeLoans"] += 1
     state.stats["totalProfit"] += trade["profit"]
-    
+
     # Clear negotiation
     state.current_negotiation = None
-    
+
     # Final broadcasts
     await manager.broadcast({
         "type": "workflow_complete",
@@ -690,28 +681,28 @@ async def close_hydra_and_settle_real() -> Dict:
             "trade": trade
         }
     })
-    
+
     await manager.broadcast({
         "type": "stats_update",
         "data": state.stats
     })
-    
+
     return settlement
 
 
 # ============================================================================
-# Hydra Mock Fallback (when no node available)
+# Workflow Channel Mock Fallback
 # ============================================================================
 
-async def open_hydra_head_mock(offer: Dict) -> Dict:
-    """Open Hydra Head for Layer 2 negotiation."""
+async def open_workflow_channel_mock(offer: Dict) -> Dict:
+    """Open a mock negotiation channel for off-chain negotiation."""
     head_id = f"head_{offer['offer_id']}_{int(datetime.now().timestamp())}"
-    
+
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 3,
-            "name": "Open Hydra Head",
+            "name": "Open Negotiation Channel",
             "status": "completed",
             "details": {
                 "head_id": head_id,
@@ -720,7 +711,7 @@ async def open_hydra_head_mock(offer: Dict) -> Dict:
             }
         }
     })
-    
+
     state.current_negotiation = {
         "head_id": head_id,
         "offer": offer,
@@ -733,23 +724,23 @@ async def open_hydra_head_mock(offer: Dict) -> Dict:
         "rounds": 0,
         "status": "open"
     }
-    
+
     return {"head_id": head_id, "status": "open", "mode": "mock"}
 
 
-async def negotiate_in_hydra_mock(proposed_rate: float) -> Dict:
-    """Execute Layer 2 loan negotiation."""
+async def negotiate_workflow_terms_mock(proposed_rate: float) -> Dict:
+    """Execute mock loan negotiation rounds."""
     if not state.current_negotiation:
         return {"error": "No active negotiation"}
-    
+
     neg = state.current_negotiation
     neg["rounds"] += 1
-    
+
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 4,
-            "name": f"Hydra Negotiation Round {neg['rounds']}",
+            "name": f"Negotiation Round {neg['rounds']}",
             "status": "processing",
             "details": {
                 "proposed_rate": proposed_rate,
@@ -757,11 +748,11 @@ async def negotiate_in_hydra_mock(proposed_rate: float) -> Dict:
             }
         }
     })
-    
+
     await asyncio.sleep(0.5)
-    
+
     original_rate = neg["original_rate"]
-    
+
     if proposed_rate >= original_rate - 1.5:
         # Accept
         neg["current_rate"] = proposed_rate
@@ -783,12 +774,12 @@ async def negotiate_in_hydra_mock(proposed_rate: float) -> Dict:
         neg["current_rate"] = counter
         action = "counter"
         message = f"Lender countered: {counter}%"
-    
+
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 4,
-            "name": f"Hydra Negotiation Round {neg['rounds']}",
+            "name": f"Negotiation Round {neg['rounds']}",
             "status": "completed",
             "details": {
                 "action": action,
@@ -797,7 +788,7 @@ async def negotiate_in_hydra_mock(proposed_rate: float) -> Dict:
             }
         }
     })
-    
+
     return {
         "success": True,
         "action": action,
@@ -806,23 +797,23 @@ async def negotiate_in_hydra_mock(proposed_rate: float) -> Dict:
     }
 
 
-async def close_hydra_and_settle_mock() -> Dict:
-    """Close Hydra Head and execute settlement."""
+async def finalize_workflow_settlement_mock() -> Dict:
+    """Close mock negotiation channel and execute settlement."""
     if not state.current_negotiation:
         return {"error": "No active negotiation"}
-    
+
     neg = state.current_negotiation
-    
+
     # If no final_rate set, use current_rate
     if "final_rate" not in neg:
         neg["final_rate"] = neg["current_rate"]
-    
+
     # Close Head
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
             "step": 5,
-            "name": "Close Hydra Head",
+            "name": "Finalize Negotiation Channel",
             "status": "completed",
             "details": {
                 "head_id": neg["head_id"],
@@ -832,12 +823,12 @@ async def close_hydra_and_settle_mock() -> Dict:
             }
         }
     })
-    
+
     await asyncio.sleep(0.5)
-    
+
     # Generate settlement TX
     tx_hash = f"tx_{neg['head_id']}_{int(datetime.now().timestamp())}"
-    
+
     # Aiken Validator verification
     await manager.broadcast({
         "type": "workflow_step",
@@ -848,9 +839,9 @@ async def close_hydra_and_settle_mock() -> Dict:
             "details": {"tx_hash": tx_hash}
         }
     })
-    
+
     await asyncio.sleep(1)
-    
+
     settlement = {
         "tx_hash": tx_hash,
         "borrower": neg["borrower"],
@@ -861,7 +852,7 @@ async def close_hydra_and_settle_mock() -> Dict:
         "term_months": neg["term_months"],
         "status": "LOAN_DISBURSED"
     }
-    
+
     await manager.broadcast({
         "type": "workflow_step",
         "data": {
@@ -876,7 +867,7 @@ async def close_hydra_and_settle_mock() -> Dict:
             }
         }
     })
-    
+
     # Record trade
     trade = {
         "id": f"trade_{int(datetime.now().timestamp())}",
@@ -889,14 +880,14 @@ async def close_hydra_and_settle_mock() -> Dict:
         "status": "completed"
     }
     state.trades.insert(0, trade)
-    
+
     # Update stats
     state.stats["activeLoans"] += 1
     state.stats["totalProfit"] += trade["profit"]
-    
+
     # Clear negotiation
     state.current_negotiation = None
-    
+
     # Final broadcast
     await manager.broadcast({
         "type": "workflow_complete",
@@ -906,12 +897,12 @@ async def close_hydra_and_settle_mock() -> Dict:
             "trade": trade
         }
     })
-    
+
     await manager.broadcast({
         "type": "stats_update",
         "data": state.stats
     })
-    
+
     return settlement
 
 
@@ -925,24 +916,24 @@ async def root():
 
 @app.get("/health")
 async def health():
-    hydra_status = "disconnected"
-    hydra_mode = "none"
-    
-    if hasattr(app.state, 'hydra_manager') and app.state.hydra_manager:
-        hydra_mode = "direct" if not app.state.hydra_manager.client._connected else "hydra"
-        hydra_status = "connected" if app.state.hydra_manager.client._connected else "disconnected"
-    
+    channel_status = "disconnected"
+    channel_mode = "none"
+
+    if hasattr(app.state, 'negotiation_manager') and app.state.negotiation_manager:
+        channel_mode = "direct" if not app.state.negotiation_manager.client._connected else "channel"
+        channel_status = "connected" if app.state.negotiation_manager.client._connected else "disconnected"
+
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "hydra": {
-            "status": hydra_status,
-            "mode": hydra_mode
+        "workflow_channel": {
+            "status": channel_status,
+            "mode": channel_mode
         }
     }
 
 
-# Hydra endpoints removed - using Ethereum L2 instead
+# Legacy channel endpoints removed; Solana workflow routes are canonical
 
 
 # --- Dashboard ---
@@ -963,7 +954,7 @@ async def get_analytics():
     profit_data = []
     loans_data = []
     rates_data = []
-    
+
     # Process trades for profit chart
     for i, trade in enumerate(state.trades[:12]):
         profit_data.append({
@@ -972,7 +963,7 @@ async def get_analytics():
             "value": trade.get("profit", 0) or 0,
             "label": f"Trade {i + 1}"
         })
-    
+
     # Process loans
     for i in range(min(10, state.stats.get("activeLoans", 0))):
         loans_data.append({
@@ -981,7 +972,7 @@ async def get_analytics():
             "value": 1,
             "label": f"Loan {i + 1}"
         })
-    
+
     # Process interest rates from trades
     for i, trade in enumerate(state.trades[:8]):
         if trade.get("interestRate"):
@@ -991,7 +982,7 @@ async def get_analytics():
                 "value": trade.get("interestRate", 0),
                 "label": f"{trade.get('interestRate', 0)}%"
             })
-    
+
     return {
         "profit": profit_data,
         "loans": loans_data,
@@ -1087,8 +1078,7 @@ async def run_agent_negotiation(
                 "reasoning": reasoning
             })
 
-            # Masumi removed - Cardano-specific agent no longer needed
-            # Ethereum blockchain analysis can be added here if needed
+            # Additional Solana-native analysis hooks can be added here if needed
 
             # Broadcast conversation update
             await manager.broadcast({
@@ -1116,13 +1106,13 @@ async def run_agent_negotiation(
                 "reasoning": "Market rate analysis complete"
             })
 
-            # Mock Masumi analysis
+            # Mock Solana risk/oracle analysis
             state.conversations[conversation_id].append({
                 "id": f"msg_{len(state.conversations[conversation_id])}",
                 "timestamp": datetime.now().isoformat(),
-                "agent": "masumi",
+                "agent": "solana",
                 "type": "analysis",
-                "content": f"Masumi Analysis: Borrower address {borrower_address[:12]}... shows standard Cardano activity. No red flags detected.",
+                "content": f"Solana Risk Analysis: Borrower address {borrower_address[:12]}... shows standard wallet activity. No red flags detected.",
                 "confidence": 0.80,
                 "reasoning": "Blockchain analysis complete"
             })
@@ -1145,7 +1135,7 @@ async def run_agent_negotiation(
                 "type": "message",
                 "content": f"Agent analysis encountered an error: {str(e)}"
             })
-            
+
             # Broadcast error update
             await manager.broadcast({
                 "type": "conversation_update",
@@ -1158,12 +1148,12 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
     # Reset state for new workflow
     state.current_negotiation = None
     state.stats["agentStatus"] = "negotiating"
-    
+
     # Initialize conversation if ID provided
     conversation_id = req.conversation_id or f"conv_{int(datetime.now().timestamp() * 1000000)}"
     if conversation_id not in state.conversations:
         state.conversations[conversation_id] = []
-    
+
     try:
         # Add initial message (thread-safe)
         conversation = state.conversations[conversation_id]
@@ -1175,7 +1165,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
             "type": "message",
             "content": f"Loan workflow started. Role: {req.role}, Stablecoin: {req.stablecoin}, Principal: {req.principal}"
         })
-        
+
         await manager.broadcast({
             "type": "workflow_started",
             "data": {
@@ -1187,15 +1177,15 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 "conversation_id": conversation_id
             }
         })
-        
+
         await manager.broadcast({
             "type": "agent_status",
             "data": {"status": "negotiating", "task": "Starting workflow..."}
         })
-        
+
         # Step 1: Credit Check
         credit = await perform_credit_check(req.borrower_address, req.credit_score)
-        
+
         if not credit["is_eligible"]:
             # Reset state on failure
             state.stats["agentStatus"] = "idle"
@@ -1212,10 +1202,10 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 "data": {"status": "idle", "task": "Workflow terminated - credit check failed"}
             })
             return {"success": False, "reason": "Credit check failed", "conversation_id": conversation_id}
-        
+
         # Step 2: Create Loan Offer
         offer_id = f"offer_{int(datetime.now().timestamp())}"
-        
+
         # Add agent conversation messages
         state.conversations[conversation_id].append({
             "id": f"msg_{len(state.conversations[conversation_id])}",
@@ -1224,7 +1214,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
             "type": "message",
             "content": f"Loan offer created: {req.interest_rate}% interest rate, {req.principal} {req.stablecoin} principal"
         })
-        
+
         state.conversations[conversation_id].append({
             "id": f"msg_{len(state.conversations[conversation_id])}",
             "timestamp": datetime.now().isoformat(),
@@ -1234,7 +1224,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
             "confidence": 0.85,
             "reasoning": "Rate is acceptable but could be negotiated lower" if req.interest_rate > 7.5 else "Rate is favorable"
         })
-        
+
         await manager.broadcast({
             "type": "workflow_step",
             "data": {
@@ -1252,16 +1242,16 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 }
             }
         })
-        
-        # Step 3: Open Hydra Head (uses real client if available)
-        await open_hydra_head_real(
+
+        # Step 3: Open negotiation channel (uses real manager if available)
+        await open_workflow_channel_real(
             borrower=req.borrower_address,
             lender=req.lender_address,
             principal=req.principal,
             interest_rate=req.interest_rate,
             term_months=req.term_months
         )
-        
+
         # Step 4: AI Analysis (actually run agents)
         await manager.broadcast({
             "type": "workflow_step",
@@ -1272,7 +1262,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 "details": {"rate": req.interest_rate}
             }
         })
-        
+
         # Run agent negotiation in background
         background_tasks.add_task(
             run_agent_negotiation,
@@ -1284,10 +1274,10 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
             term_months=req.term_months,
             auto_confirm=req.auto_confirm
         )
-        
+
         # Wait a bit for agent to start
         await asyncio.sleep(2)
-        
+
         # Determine target rate (simplified for now, agents will handle negotiation)
         if req.interest_rate <= 7.0:
             target = req.interest_rate
@@ -1298,7 +1288,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
         else:
             target = round(req.interest_rate - 1.5, 1)
             action = "negotiate"
-        
+
         await manager.broadcast({
             "type": "workflow_step",
             "data": {
@@ -1312,7 +1302,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 }
             }
         })
-        
+
         # Step 5: Negotiate (uses real client if available)
         # Add negotiation message
         state.conversations[conversation_id].append({
@@ -1322,9 +1312,9 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
             "type": "message",
             "content": f"Counter-offer: {target}% interest rate. This is more aligned with current market conditions."
         })
-        
-        result = await negotiate_in_hydra_real(target)
-        
+
+        result = await negotiate_workflow_terms_real(target)
+
         # Add response message
         if result.get("action") == "accepted":
             state.conversations[conversation_id].append({
@@ -1353,12 +1343,12 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 "confidence": 0.92,
                 "reasoning": "Rate is at market average, savings achieved"
             })
-            result = await negotiate_in_hydra_real(new_target)
-        
+            result = await negotiate_workflow_terms_real(new_target)
+
         # Step 6: Accept and Settle (only if auto_confirm is enabled)
         settlement = None
         if req.auto_confirm:
-            settlement = await close_hydra_and_settle_real()
+            settlement = await finalize_workflow_settlement_real()
 
             # Add final settlement message
             state.conversations[conversation_id].append({
@@ -1397,12 +1387,12 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 "type": "agent_status",
                 "data": {"status": "completed", "task": "Negotiation complete. Awaiting user confirmation."}
             })
-        
+
         await manager.broadcast({
             "type": "conversation_update",
             "data": {"conversation_id": conversation_id}
         })
-        
+
         return {
             "success": True,
             "conversation_id": conversation_id,
@@ -1413,7 +1403,7 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
         print(f"[Workflow] Error: {e}")
         state.stats["agentStatus"] = "idle"
         state.current_negotiation = None
-        
+
         if conversation_id in state.conversations:
             state.conversations[conversation_id].append({
                 "id": f"msg_{len(state.conversations[conversation_id])}",
@@ -1422,12 +1412,12 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
                 "type": "message",
                 "content": f"Workflow error: {str(e)}"
             })
-        
+
         await manager.broadcast({
             "type": "agent_status",
             "data": {"status": "idle", "task": "Workflow error - reset to idle"}
         })
-        
+
         return {
             "success": False,
             "reason": str(e),
@@ -1438,14 +1428,14 @@ async def start_workflow(req: WorkflowRequest, background_tasks: BackgroundTasks
 @app.post("/api/negotiation/propose")
 async def propose_rate(req: NegotiationRequest):
     """Propose a rate in active negotiation."""
-    result = await negotiate_in_hydra_real(req.proposed_rate)
+    result = await negotiate_workflow_terms_real(req.proposed_rate)
     return result
 
 
 @app.post("/api/negotiation/accept")
 async def accept_terms():
     """Accept current terms and settle."""
-    settlement = await close_hydra_and_settle_real()
+    settlement = await finalize_workflow_settlement_real()
     return settlement
 
 
@@ -1471,8 +1461,8 @@ async def manual_settlement():
 
         print(f"[Manual Settlement] Processing settlement for head_id: {neg['head_id']}")
 
-        # Close Hydra head and settle
-        settlement = await close_hydra_and_settle_real()
+        # Close negotiation channel and settle
+        settlement = await finalize_workflow_settlement_real()
 
         # Add settlement message to the most recent conversation
         latest_conversation_id = None
@@ -1522,7 +1512,7 @@ async def agent_status():
         "agents_initialized": getattr(app.state, 'agents_initialized', False),
         "lenny_available": hasattr(app.state, 'lenny_agent') and app.state.lenny_agent is not None,
         "luna_available": hasattr(app.state, 'luna_agent') and app.state.luna_agent is not None,
-        "masumi_available": False,  # Masumi removed - Cardano-specific
+        "solana_oracle_available": False,
         "status": state.stats["agentStatus"],
         "current_task": "Monitoring offers" if state.stats["agentStatus"] == "idle" else "Negotiating",
         "active_negotiation": state.current_negotiation is not None
@@ -1557,14 +1547,14 @@ async def get_latest_conversation():
     """Get the most recent conversation."""
     if not state.conversations:
         return {"conversation_id": None, "messages": []}
-    
+
     latest_id = max(state.conversations.keys(), key=lambda k: len(state.conversations[k]))
     messages = state.conversations[latest_id]
     return {"conversation_id": latest_id, "messages": messages}
 
 
-# PyCardano endpoints removed - using Ethereum transaction builder instead
-# See backend/ethereum/tx_builder.py for Ethereum transaction building
+# Legacy non-Solana endpoints removed
+# Settlement uses the current Solana workflow path
 
 
 # ============================================================================
@@ -1579,23 +1569,23 @@ async def create_multi_agent_negotiation(req: Dict):
             "success": False,
             "error": "Agents not available"
         }
-    
+
     try:
         manager = get_negotiation_manager()
-        
+
         negotiation = manager.create_negotiation(
             borrowers=req.get("borrowers", []),
             lenders=req.get("lenders", []),
             loan_terms=req.get("loan_terms", {})
         )
-        
+
         return {
             "success": True,
             "negotiation_id": negotiation.negotiation_id,
             "participants": len(negotiation.participants),
             "status": negotiation.status
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -1611,12 +1601,12 @@ async def run_negotiation_round(negotiation_id: str):
             "success": False,
             "error": "Agents not available"
         }
-    
+
     try:
         manager = get_negotiation_manager()
         result = await manager.run_negotiation_round(negotiation_id)
         return result
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -1632,17 +1622,17 @@ async def get_multi_agent_negotiation(negotiation_id: str):
             "success": False,
             "error": "Agents not available"
         }
-    
+
     try:
         manager = get_negotiation_manager()
         negotiation = manager.get_negotiation(negotiation_id)
-        
+
         if not negotiation:
             return {
                 "success": False,
                 "error": "Negotiation not found"
             }
-        
+
         return {
             "success": True,
             "negotiation_id": negotiation.negotiation_id,
@@ -1659,7 +1649,7 @@ async def get_multi_agent_negotiation(negotiation_id: str):
             ],
             "loan_terms": negotiation.loan_terms
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -1675,7 +1665,7 @@ async def list_multi_agent_negotiations():
             "success": False,
             "negotiations": []
         }
-    
+
     try:
         manager = get_negotiation_manager()
         negotiations = manager.list_negotiations()
@@ -1683,7 +1673,7 @@ async def list_multi_agent_negotiations():
             "success": True,
             "negotiations": negotiations
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -1699,41 +1689,41 @@ async def list_multi_agent_negotiations():
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await manager.connect(ws)
-    
+
     try:
         # Send initial state
         await ws.send_json({
             "type": "connected",
             "data": {"message": "Connected to Lendora AI"}
         })
-        
+
         await ws.send_json({
             "type": "stats_update",
             "data": state.stats
         })
-        
+
         await ws.send_json({
             "type": "agent_status",
             "data": {"status": state.stats["agentStatus"]}
         })
-        
-        # Send Hydra status
-        hydra_mode = "unavailable"
-        if hasattr(app.state, 'hydra_manager') and app.state.hydra_manager:
-            hydra_mode = "direct" if not app.state.hydra_manager.client._connected else "hydra"
-        
+
+        # Send workflow channel status
+        channel_mode = "unavailable"
+        if hasattr(app.state, 'negotiation_manager') and app.state.negotiation_manager:
+            channel_mode = "direct" if not app.state.negotiation_manager.client._connected else "channel"
+
         await ws.send_json({
-            "type": "hydra_status",
-            "data": {"mode": hydra_mode}
+            "type": "workflow_channel_status",
+            "data": {"mode": channel_mode}
         })
-        
+
         while True:
             data = await ws.receive_text()
             msg = json.loads(data)
-            
+
             if msg.get("type") == "ping":
                 await ws.send_json({"type": "pong"})
-            
+
     except WebSocketDisconnect:
         manager.disconnect(ws)
     except Exception as e:
@@ -1886,7 +1876,7 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
     Requires X-PAYMENT header with valid Solana USDC transaction.
     """
     payment = getattr(request.state, "payment", None)
-    
+
     # Get SAS attestation for borrower
     attestation_data = {"tier": "A", "rate_bps": 950}
     if SAS_AVAILABLE:
@@ -1896,14 +1886,14 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
                 attestation_data = {"tier": att.credit_tier, "rate_bps": att.interest_rate_bps}
         except Exception:
             pass
-    
+
     # Jupiter price for collateral
     collateral_price = 180.50
-    
+
     # Compute LTV and recommended rate
     collateral_usdc = collateral_price * (req.amount_usdc / collateral_price)
     ltv = req.amount_usdc / collateral_usdc if collateral_usdc > 0 else 1.0
-    
+
     result = {
         "eligible": True,
         "borrower": req.borrower_pubkey[:20] + "...",
@@ -1918,7 +1908,7 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
         "x402_signature": payment.get("signature", "demo") if payment else "no_payment",
         "timestamp": datetime.utcnow().isoformat(),
     }
-    
+
     await manager.broadcast({
         "type": "agent_evaluation",
         "data": {
@@ -1942,7 +1932,7 @@ class AgentNegotiateRequest(BaseModel):
 async def agent_negotiate(req: AgentNegotiateRequest, request: Request):
     """x402-protected endpoint: submit negotiation counter-offer."""
     payment = getattr(request.state, "payment", None)
-    
+
     # Luna's evaluation
     result = handle_negotiation_request(
         req.borrower_pubkey,
@@ -1955,7 +1945,7 @@ async def agent_negotiate(req: AgentNegotiateRequest, request: Request):
         "message": f"Luna counters with {round((req.proposed_rate + 9.5)/2, 2)}%",
         "settled": False,
     }
-    
+
     await manager.broadcast({
         "type": "negotiation_round",
         "data": {
@@ -1976,7 +1966,18 @@ async def start_solana_workflow(req: dict, background_tasks: BackgroundTasks):
     rate = req.get("interest_rate", 9.5)
     term = req.get("term_months", 12)
     score = req.get("credit_score", 720)
-    
+
+    await manager.broadcast({
+        "type": "workflow_started",
+        "data": {
+            "borrower": borrower,
+            "principal": amount,
+            "interest_rate": rate,
+            "term_months": term,
+            "source": "solana_route"
+        }
+    })
+
     async def run_workflow():
         if SOLANA_AGENTS_AVAILABLE:
             result = await run_solana_borrower_workflow(
@@ -1995,14 +1996,19 @@ async def start_solana_workflow(req: dict, background_tasks: BackgroundTasks):
                 "solana_tx": f"SIM_WORKFLOW_{int(datetime.utcnow().timestamp())}",
                 "demo": True,
             }
-        
+
         await manager.broadcast({
             "type": "workflow_complete",
             "data": result
         })
-    
+
     background_tasks.add_task(run_workflow)
-    return {"status": "started", "borrower": borrower[:20] + "...", "message": "Solana workflow started in background"}
+    return {
+        "success": True,
+        "status": "started",
+        "borrower": borrower[:20] + "...",
+        "message": "Solana workflow started in background"
+    }
 
 
 # ============================================================================

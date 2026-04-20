@@ -5,16 +5,13 @@
 
 import React, { useState } from 'react';
 
-export type Stablecoin = 'USDT' | 'USDC' | 'DAI' | 'USDD' | 'TUSD' | 'BUSD';
+export type Stablecoin = 'USDT' | 'USDC' | 'PYUSD';
 
 // Using CoinGecko CDN for stablecoin logos
 const STABLECOIN_LOGOS: Record<Stablecoin, string> = {
   USDT: 'https://assets.coingecko.com/coins/images/325/small/Tether.png',
   USDC: 'https://assets.coingecko.com/coins/images/6319/small/USD_Coin_icon.png',
-  DAI: 'https://assets.coingecko.com/coins/images/9956/small/Badge_Dai.png',
-  USDD: 'https://assets.coingecko.com/coins/images/25380/small/USDD.jpg',
-  TUSD: 'https://assets.coingecko.com/coins/images/3449/small/tusd.png',
-  BUSD: 'https://assets.coingecko.com/coins/images/9576/small/BUSD.png',
+  PYUSD: 'https://assets.coingecko.com/coins/images/31239/small/PYUSD_Logo.png',
 };
 
 /**

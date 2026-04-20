@@ -34,7 +34,7 @@ const mockLogs: AgentLog[] = [
     id: "3",
     agent: "Agent-Gamma",
     action: "Risk Assessment",
-    target: "DAI Market",
+    target: "PYUSD Market",
     rate: "3.8%",
     status: "analyzing",
     timestamp: "8m ago",

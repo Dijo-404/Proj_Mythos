@@ -15,8 +15,8 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
-      - ETHEREUM_NETWORK=${ETHEREUM_NETWORK:-arbitrum-testnet}
-      - ETHEREUM_RPC_URL=${ETHEREUM_RPC_URL:-}
+      - SOLANA_NETWORK=${SOLANA_NETWORK:-mainnet-beta}
+      - HELIUS_RPC_URL=${HELIUS_RPC_URL:-}
       - CREDIT_ORACLE_URL=${CREDIT_ORACLE_URL:-}
       - CREDIT_ORACLE_API_KEY=${CREDIT_ORACLE_API_KEY:-}
     volumes:

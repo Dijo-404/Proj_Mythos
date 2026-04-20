@@ -52,7 +52,7 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
     const [amount, setAmount] = useState<string>('');
     const [modalState, setModalState] = useState<ModalState>('input');
     const [errorMessage, setErrorMessage] = useState<string>('');
-    
+
     const { addLoan } = useLendora();
     const { address, balance } = useWallet();
     const navigate = useNavigate();
@@ -69,7 +69,7 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
             // Restore scrolling when modal closes
             document.body.style.overflow = '';
         }
-        
+
         // Cleanup on unmount
         return () => {
             document.body.style.overflow = '';
@@ -82,7 +82,7 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
     const apy = isSupply ? asset.supplyRate : asset.borrowRate;
     const availableLiquidity = asset.totalLiquidity - asset.totalBorrowed;
     const numericAmount = parseFloat(amount) || 0;
-    
+
     // Validation checks
     const isAmountValid = numericAmount > 0;
     const exceedsBalance = isSupply && numericAmount > MOCK_WALLET_BALANCE;
@@ -90,8 +90,8 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
     const isDisabled = !isAmountValid || exceedsBalance || exceedsLiquidity || modalState === 'loading';
 
     // Calculate new wallet balance (mock)
-    const newWalletBalance = isSupply 
-        ? MOCK_WALLET_BALANCE - numericAmount 
+    const newWalletBalance = isSupply
+        ? MOCK_WALLET_BALANCE - numericAmount
         : MOCK_WALLET_BALANCE + numericAmount;
 
     // Calculate expected earnings/cost (1 year)
@@ -136,7 +136,7 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
 
             // Show toast notification
             toast({
-                title: isSupply ? '✅ Supply Successful!' : '✅ Borrow Successful!',
+                title: isSupply ? 'Supply Successful!' : 'Borrow Successful!',
                 description: `Your ${numericAmount.toLocaleString()} ${asset.symbol} ${isSupply ? 'supply' : 'borrow'} has been processed.`,
             });
 
@@ -159,7 +159,7 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
 
     // Render asset icon
     const AssetIcon = () => {
-        const stablecoins: Stablecoin[] = ['USDC', 'DAI', 'USDT', 'TUSD', 'BUSD', 'USDD'];
+        const stablecoins: Stablecoin[] = ['USDC', 'PYUSD', 'USDT'];
         if (stablecoins.includes(asset.symbol as Stablecoin)) {
             return <StablecoinLogo symbol={asset.symbol as Stablecoin} size={48} />;
         }
@@ -239,7 +239,7 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
                                 {/* Transaction Details */}
                                 <div className="space-y-3 p-4 rounded-lg bg-secondary/20 border border-border">
                                     <h4 className="text-sm font-semibold text-foreground">Transaction Details</h4>
-                                    
+
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-muted-foreground">New Wallet Balance</span>
                                         <span className="text-sm font-semibold text-foreground tabular-nums">
@@ -304,18 +304,18 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
                             </div>
 
                             <DialogFooter className="gap-2 sm:gap-0 pt-2">
-                                <Button 
-                                    variant="outline" 
+                                <Button
+                                    variant="outline"
                                     onClick={handleClose}
                                     className="transition-all duration-200 hover:bg-secondary/80"
                                 >
                                     Cancel
                                 </Button>
-                                <Button 
-                                    onClick={handleConfirm} 
+                                <Button
+                                    onClick={handleConfirm}
                                     disabled={isDisabled}
-                                    className={`transition-all duration-200 ${isSupply 
-                                        ? 'bg-green-600 hover:bg-green-700 active:scale-[0.98]' 
+                                    className={`transition-all duration-200 ${isSupply
+                                        ? 'bg-green-600 hover:bg-green-700 active:scale-[0.98]'
                                         : 'bg-primary hover:bg-primary/90 active:scale-[0.98]'
                                     }`}
                                 >
@@ -373,11 +373,11 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
                             >
                                 <CheckCircle2 className="w-10 h-10 text-green-500" />
                             </motion.div>
-                            
+
                             <h3 className="text-xl font-semibold mt-6 text-foreground">
                                 Transaction Successful!
                             </h3>
-                            
+
                             <p className="text-sm text-muted-foreground mt-2 text-center">
                                 Your {numericAmount.toLocaleString()} {asset.symbol} has been {isSupply ? 'supplied' : 'borrowed'} successfully.
                             </p>
@@ -398,15 +398,15 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
                             </div>
 
                             <div className="flex gap-3 mt-6 w-full">
-                                <Button 
-                                    variant="outline" 
-                                    onClick={handleClose} 
+                                <Button
+                                    variant="outline"
+                                    onClick={handleClose}
                                     className="flex-1 transition-all duration-200 hover:bg-secondary/80"
                                 >
                                     Close
                                 </Button>
-                                <Button 
-                                    onClick={handleViewLoans} 
+                                <Button
+                                    onClick={handleViewLoans}
                                     className="flex-1 transition-all duration-200 active:scale-[0.98]"
                                 >
                                     View My Loans
@@ -432,25 +432,25 @@ export function TransactionModal({ isOpen, onClose, type, asset }: TransactionMo
                             >
                                 <AlertCircle className="w-10 h-10 text-destructive" />
                             </motion.div>
-                            
+
                             <h3 className="text-xl font-semibold mt-6 text-foreground">
                                 Transaction Failed
                             </h3>
-                            
+
                             <p className="text-sm text-muted-foreground mt-2 text-center">
                                 {errorMessage || 'Something went wrong. Please try again.'}
                             </p>
 
                             <div className="flex gap-3 mt-6 w-full">
-                                <Button 
-                                    variant="outline" 
-                                    onClick={handleClose} 
+                                <Button
+                                    variant="outline"
+                                    onClick={handleClose}
                                     className="flex-1 transition-all duration-200 hover:bg-secondary/80"
                                 >
                                     Close
                                 </Button>
-                                <Button 
-                                    onClick={() => setModalState('input')} 
+                                <Button
+                                    onClick={() => setModalState('input')}
                                     className="flex-1 transition-all duration-200 active:scale-[0.98]"
                                 >
                                     Try Again

@@ -95,10 +95,10 @@ def build_402_response(path: str, amount: int) -> JSONResponse:
 async def verify_payment_header(payment_header: str, path: str) -> Optional[Dict[str, Any]]:
     """
     Verify the X-PAYMENT header from the agent.
-    
+
     In production: verifies the Solana transaction on-chain via Helius.
     In demo mode: accepts a simulated payment token.
-    
+
     Returns: payment info dict if valid, None if invalid
     """
     try:
@@ -118,7 +118,7 @@ async def verify_payment_header(payment_header: str, path: str) -> Optional[Dict
         async with _payment_lock:
             if tx_signature in _verified_payments:
                 if _verified_payments[tx_signature] > datetime.utcnow():
-                    print(f"[x402] ✅ Cached payment: {tx_signature[:20]}...")
+                    print(f"[x402][CACHE] Cached payment: {tx_signature[:20]}...")
                     return {"signature": tx_signature, "cached": True}
                 else:
                     del _verified_payments[tx_signature]
@@ -126,7 +126,7 @@ async def verify_payment_header(payment_header: str, path: str) -> Optional[Dict
         # Demo/Devnet mode: accept simulated payments
         demo_mode = os.getenv("X402_DEMO_MODE", "true").lower() == "true"
         if demo_mode and tx_signature.startswith("SIM_"):
-            print(f"[x402] 🎭 Demo payment accepted: {tx_signature[:30]}...")
+            print(f"[x402][DEMO] Payment accepted: {tx_signature[:30]}...")
             async with _payment_lock:
                 _verified_payments[tx_signature] = datetime.utcnow() + timedelta(minutes=5)
             return {
@@ -141,10 +141,10 @@ async def verify_payment_header(payment_header: str, path: str) -> Optional[Dict
         if verified:
             async with _payment_lock:
                 _verified_payments[tx_signature] = datetime.utcnow() + timedelta(minutes=30)
-            print(f"[x402] ✅ On-chain payment verified: {tx_signature[:20]}...")
+            print(f"[x402][OK] On-chain payment verified: {tx_signature[:20]}...")
             return {"signature": tx_signature, "network": network, "on_chain": True}
 
-        print(f"[x402] ❌ Payment verification failed: {tx_signature[:20]}...")
+        print(f"[x402][ERROR] Payment verification failed: {tx_signature[:20]}...")
         return None
 
     except Exception as e:
@@ -207,7 +207,7 @@ async def verify_solana_tx_helius(signature: str, path: str) -> bool:
                 post_amount = int(post.get("uiTokenAmount", {}).get("amount", 0))
                 received = post_amount - pre_amount
                 if received >= required_amount:
-                    print(f"[x402] Treasury received {received} USDC-lamports ✅")
+                    print(f"[x402][OK] Treasury received {received} USDC-lamports")
                     return True
 
         return False
@@ -220,7 +220,7 @@ async def verify_solana_tx_helius(signature: str, path: str) -> bool:
 async def x402_middleware(request: Request, call_next):
     """
     FastAPI middleware that enforces x402 payment gates.
-    
+
     Protected routes return HTTP 402 unless a valid X-PAYMENT header is present.
     """
     path = request.url.path
@@ -231,7 +231,7 @@ async def x402_middleware(request: Request, call_next):
 
         if not payment_header:
             required_amount = PAYMENT_REQUIRED_PATHS[path]
-            print(f"[x402] 💸 Payment required for {path} ({required_amount} USDC-lamports)")
+            print(f"[x402][REQUIRED] Payment required for {path} ({required_amount} USDC-lamports)")
             return build_402_response(path, required_amount)
 
         # Verify the payment
@@ -245,7 +245,7 @@ async def x402_middleware(request: Request, call_next):
                 }
             )
 
-        print(f"[x402] ✅ Payment verified for {path}")
+        print(f"[x402][OK] Payment verified for {path}")
         # Add payment info to request state for route handlers
         request.state.payment = payment_info
 
@@ -257,7 +257,7 @@ def simulate_agent_payment(path: str, agent_name: str = "lenny") -> str:
     """
     Simulate an agent making a payment (for demo purposes).
     In production, the agent would actually sign and submit a Solana transaction.
-    
+
     Returns: payment header value ready to be sent
     """
     sim_signature = f"SIM_{agent_name}_{int(datetime.utcnow().timestamp() * 1000)}"
@@ -269,7 +269,7 @@ def simulate_agent_payment(path: str, agent_name: str = "lenny") -> str:
         "agent": agent_name
     }
     encoded = base64.b64encode(json.dumps(payment_data).encode()).decode()
-    print(f"[x402] 🤖 Agent '{agent_name}' simulating payment for {path}")
+    print(f"[x402][SIM] Agent '{agent_name}' simulating payment for {path}")
     return encoded
 
 

@@ -89,7 +89,7 @@ _attestations: Dict[str, CreditAttestation] = {}
 class SASClient:
     """
     Client for the Solana Attestation Service.
-    
+
     In demo mode: creates attestations locally and stores them in memory.
     In production: submits anchor instructions to the SAS program on Solana.
     """
@@ -102,7 +102,7 @@ class SASClient:
         )
         self.demo_mode = os.getenv("SAS_DEMO_MODE", "true").lower() == "true"
         self.schema_id = "mythos-credit-v1"
-        
+
         print(f"[SAS] Client initialized (demo={self.demo_mode}, network={self.network})")
 
     def _score_to_tier(self, score: int) -> str:
@@ -122,10 +122,10 @@ class SASClient:
             return 15.0
 
         base_bps = CREDIT_TIERS[tier]["rate_bps"]
-        
+
         # Term adjustment: shorter term gets 0.25% discount per 6 months under 24
         term_adj = max(0, (24 - term_months) // 6) * 25  # 25 bps per bracket
-        
+
         final_bps = max(base_bps - term_adj, 500)  # Floor at 5%
         return final_bps / 100.0
 
@@ -137,22 +137,22 @@ class SASClient:
     ) -> CreditAttestation:
         """
         Issue a credit attestation for a borrower.
-        
+
         Args:
             subject_pubkey: Borrower's Solana public key
             credit_score: Credit score (300-850)
             income_verified: Whether off-chain income has been verified
-            
+
         Returns: CreditAttestation with on-chain signature (demo or real)
         """
-        print(f"\n[SAS] 📋 Issuing credit attestation...")
+        print(f"\n[SAS][ISSUE] Issuing credit attestation...")
         print(f"[SAS]    Borrower: {subject_pubkey[:20]}...")
         print(f"[SAS]    Score: {credit_score} (private, not stored on-chain)")
 
         tier = self._score_to_tier(credit_score)
-        
+
         if tier == "INELIGIBLE":
-            print(f"[SAS] ❌ Score too low ({credit_score} < 600). No attestation issued.")
+            print(f"[SAS][ERROR] Score too low ({credit_score} < 600). No attestation issued.")
             raise ValueError(f"Credit score {credit_score} does not qualify for any tier (minimum 600)")
 
         tier_config = CREDIT_TIERS[tier]
@@ -176,7 +176,7 @@ class SASClient:
 
             _attestations[subject_pubkey] = attestation
 
-            print(f"[SAS] ✅ Attestation issued!")
+            print(f"[SAS][OK] Attestation issued!")
             print(f"[SAS]    Tier: {tier} | Rate: {tier_config['rate_bps']/100}% APR | LTV: {tier_config['ltv_bps']/100}%")
             print(f"[SAS]    Attestation ID: {attestation.attestation_id}")
             print(f"[SAS]    Expires: {attestation.expires_at[:10]}")
@@ -191,26 +191,26 @@ class SASClient:
     ) -> Optional[CreditAttestation]:
         """
         Verify an existing credit attestation for a borrower.
-        
+
         Args:
             subject_pubkey: Borrower's Solana public key
-            
+
         Returns: CreditAttestation if valid, None if missing/expired
         """
-        print(f"\n[SAS] 🔍 Verifying attestation for {subject_pubkey[:20]}...")
+        print(f"\n[SAS][VERIFY] Verifying attestation for {subject_pubkey[:20]}...")
 
         attestation = _attestations.get(subject_pubkey)
 
         if not attestation:
-            print(f"[SAS] ⚠️  No attestation found for this wallet")
+            print(f"[SAS][WARN] No attestation found for this wallet")
             return None
 
         if attestation.is_expired:
-            print(f"[SAS] ⚠️  Attestation expired on {attestation.expires_at[:10]}")
+            print(f"[SAS][WARN] Attestation expired on {attestation.expires_at[:10]}")
             del _attestations[subject_pubkey]
             return None
 
-        print(f"[SAS] ✅ Valid attestation found: Tier {attestation.credit_tier}")
+        print(f"[SAS][OK] Valid attestation found: Tier {attestation.credit_tier}")
         return attestation
 
     async def get_loan_terms(
@@ -222,7 +222,7 @@ class SASClient:
         """
         Get loan terms based on attestation.
         Used by Luna (lender agent) to price the loan offer.
-        
+
         Returns: dict with rate, max_amount, ltv, tier
         """
         attestation = await self.verify_attestation(subject_pubkey)
@@ -234,7 +234,7 @@ class SASClient:
             }
 
         max_loan = attestation.max_loan_usdc / 100  # Convert cents to USDC
-        
+
         if requested_amount_usdc > max_loan:
             return {
                 "eligible": False,
@@ -276,13 +276,13 @@ class SASClient:
         # 2. Build an anchor instruction to the SAS program
         # 3. Sign with the issuer keypair
         # 4. Submit to Solana
-        
+
         # For now, mark as pending and return
         attestation.tx_signature = "PENDING_REAL_SAS_TX"
         attestation.on_chain = False
         _attestations[attestation.subject_pubkey] = attestation
-        
-        print("[SAS] ℹ️  Real SAS instruction submission not yet implemented")
+
+        print("[SAS][INFO] Real SAS instruction submission not yet implemented")
         print("[SAS]     Attestation stored locally as fallback")
         return attestation
 

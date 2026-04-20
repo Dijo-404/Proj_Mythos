@@ -73,7 +73,7 @@ function HeroSection({ onStart }: { onStart: () => void }) {
         animate={{ opacity: 1, y: 0 }}
         className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-xs text-purple-300 mb-6"
       >
-        <span className="animate-pulse">◎</span>
+        <span className="animate-pulse">SOL</span>
         Built for Solana Hackathon 2026
         <span className="px-2 py-0.5 bg-purple-500/20 rounded-full text-purple-200 text-[10px] font-semibold">x402 · SAS · Helius · Jupiter</span>
       </motion.div>
@@ -111,10 +111,10 @@ function HeroSection({ onStart }: { onStart: () => void }) {
         className="flex flex-wrap justify-center gap-6 mb-10 text-sm"
       >
         {[
-          { label: 'SOL Price', value: `$${solPrice.toFixed(2)}`, icon: '◎', color: 'text-green-400' },
-          { label: 'TPS', value: '~4,000', icon: '⚡', color: 'text-yellow-400' },
-          { label: 'Settlement', value: '<1s', icon: '🚀', color: 'text-blue-400' },
-          { label: 'Protocol', value: 'x402', icon: '💸', color: 'text-purple-400' },
+          { label: 'SOL Price', value: `$${solPrice.toFixed(2)}`, icon: 'SOL', color: 'text-green-400' },
+          { label: 'TPS', value: '~4,000', icon: 'TPS', color: 'text-yellow-400' },
+          { label: 'Settlement', value: '<1s', icon: 'SET', color: 'text-blue-400' },
+          { label: 'Protocol', value: 'x402', icon: 'PAY', color: 'text-purple-400' },
         ].map(stat => (
           <div key={stat.label} className="flex items-center gap-2 text-gray-300">
             <span className={stat.color}>{stat.icon}</span>
@@ -137,7 +137,7 @@ function HeroSection({ onStart }: { onStart: () => void }) {
             id="start-loan-btn"
             className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white font-bold text-lg shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 active:scale-95"
           >
-            🤖 Start AI Loan Negotiation
+            Start AI Loan Negotiation
           </button>
         ) : (
           <div className="flex flex-col items-center gap-2">
@@ -152,7 +152,7 @@ function HeroSection({ onStart }: { onStart: () => void }) {
           className="px-8 py-4 rounded-xl border border-gray-700 hover:border-purple-500/50 text-gray-300 hover:text-white font-semibold transition-all"
           id="view-program-btn"
         >
-          ◎ View Anchor Program
+          View Anchor Program
         </a>
       </motion.div>
     </div>
@@ -185,7 +185,7 @@ function LoanRequestForm({
   return (
     <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl border border-gray-700/50 p-6 space-y-5">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xl">📋</span>
+        <span className="text-xl">CFG</span>
         <h2 className="text-white font-bold">Loan Parameters</h2>
         <span className="ml-auto text-xs text-purple-400 flex items-center gap-1">
           <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
@@ -297,7 +297,7 @@ function LoanRequestForm({
             Negotiating on Solana...
           </span>
         ) : wallet.connected ? (
-          '🤖 Start AI Negotiation'
+          'Start AI Negotiation'
         ) : (
           'Connect Wallet First'
         )}
@@ -306,7 +306,7 @@ function LoanRequestForm({
   );
 }
 
-// ============================================================================  
+// ============================================================================
 // Helius Live Feed (bottom ticker)
 // ============================================================================
 
@@ -343,7 +343,7 @@ function HeliusFeedTicker({ events }: { events: HeliusLoanEvent[] }) {
             {event.txSignature && (
               <a href={getExplorerUrl(event.txSignature)} target="_blank" rel="noopener noreferrer"
                 className="text-purple-400 hover:text-purple-300 whitespace-nowrap">
-                {shortenAddress(event.txSignature)} ↗
+                {shortenAddress(event.txSignature)}
               </a>
             )}
           </motion.div>
@@ -373,7 +373,7 @@ export default function MythosPage() {
       { eventType: 'attestation_verified', message: 'SAS attestation verified for LennyBorrower...', slot: 350012346, timestamp: new Date().toISOString(), network: SOLANA_NETWORK },
       { eventType: 'payment_x402', message: 'x402: 0.001 USDC paid for /api/agent/evaluate', slot: 350012347, timestamp: new Date().toISOString(), network: SOLANA_NETWORK },
       { eventType: 'negotiation_round', message: 'Lenny: counter 7.5% → Luna: counter 8.0%', slot: 350012348, timestamp: new Date().toISOString(), network: SOLANA_NETWORK },
-      { eventType: 'loan_accepted', message: 'Mythos Anchor: Loan #42 settled at 8.0% APR ✅', slot: 350012349, timestamp: new Date().toISOString(), network: SOLANA_NETWORK },
+      { eventType: 'loan_accepted', message: 'Mythos Anchor: Loan #42 settled at 8.0% APR', slot: 350012349, timestamp: new Date().toISOString(), network: SOLANA_NETWORK },
     ];
     const interval = setInterval(() => {
       setHeliusEvents(prev => {
@@ -396,19 +396,17 @@ export default function MythosPage() {
     clearMessages();
     setX402Payments([]);
 
-    // Trigger backend workflow
+    // Trigger backend workflow (Solana-native route)
     try {
-      await fetch(`${API_URL}/api/workflow/start`, {
+      await fetch(`${API_URL}/api/solana/workflow/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           borrower_address: wallet.publicKey,
-          lender_address: 'LunaLenderAgentXXXXXXXXXXXXXXXXXXXXXXXXX',
           credit_score: 720,
           principal: loanParams.amount,
           interest_rate: 9.5,
           term_months: loanParams.termMonths,
-          stablecoin: 'USDC',
         }),
       });
     } catch {
@@ -459,22 +457,22 @@ export default function MythosPage() {
               <div className="max-w-6xl mx-auto mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-4">
                 {[
                   {
-                    icon: '🤖', title: 'AI Negotiation',
+                    icon: 'AI', title: 'AI Negotiation',
                     desc: 'Lenny & Luna negotiate your interest rate autonomously using CrewAI + Llama 3',
                     tag: 'CrewAI'
                   },
                   {
-                    icon: '💸', title: 'x402 Payments',
+                    icon: 'PAY', title: 'x402 Payments',
                     desc: 'Agents pay each other micro-fees in USDC on Solana for every AI service call',
                     tag: 'HTTP 402'
                   },
                   {
-                    icon: '🪪', title: 'SAS Attestations',
+                    icon: 'SAS', title: 'SAS Attestations',
                     desc: 'Credit scores verified on-chain via Solana Attestation Service — no privacy leaks',
                     tag: 'Solana SAS'
                   },
                   {
-                    icon: '◎', title: 'Anchor Programs',
+                    icon: 'SOL', title: 'Anchor Programs',
                     desc: 'Loans settled in sub-second via Anchor smart contracts on Solana Devnet',
                     tag: 'Anchor'
                   },
@@ -534,14 +532,14 @@ export default function MythosPage() {
 
                   {/* Network info */}
                   <div className="mt-4 bg-gray-900/60 rounded-2xl border border-gray-700/50 p-4 text-xs space-y-2">
-                    <div className="font-medium text-gray-300 mb-2">🔗 Network Info</div>
+                    <div className="font-medium text-gray-300 mb-2">Network Info</div>
                     <div className="flex justify-between text-gray-500">
                       <span>Network</span><span className="text-green-400 capitalize">{SOLANA_NETWORK}</span>
                     </div>
                     <div className="flex justify-between text-gray-500">
                       <span>Program</span>
                       <a href={getExplorerUrl(MYTHOS_PROGRAM_ID, 'address')} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300">
-                        {MYTHOS_PROGRAM_ID.slice(0, 12)}... ↗
+                        {MYTHOS_PROGRAM_ID.slice(0, 12)}...
                       </a>
                     </div>
                     <div className="flex justify-between text-gray-500">

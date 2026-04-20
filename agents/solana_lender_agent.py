@@ -47,7 +47,7 @@ class VerifyBorrowerAttestationTool(BaseTool):
         try:
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend/api"))
             from attestation import sas_client
-            
+
             loop = asyncio.new_event_loop()
             att = loop.run_until_complete(
                 sas_client.verify_attestation(borrower_pubkey.strip())
@@ -120,15 +120,15 @@ class PriceLoanTool(BaseTool):
 
             tier_config = self.TIER_RATES.get(tier, self.TIER_RATES["A"])
             base_rate = tier_config["base_rate"]
-            
+
             # Term adjustment: longer term = higher rate (more risk)
             term_spread = max(0, (term - 12) / 12) * 0.5
-            
+
             # Size adjustment: larger loans get slightly better rates
             size_discount = min(0.5, principal / 100000)
-            
+
             final_rate = round(base_rate + term_spread - size_discount, 2)
-            
+
             monthly_payment = self._monthly_payment(principal, final_rate, term)
             total_interest = (monthly_payment * term) - principal
 
@@ -176,7 +176,7 @@ class EvaluateCounterOfferTool(BaseTool):
             proposed = float(params.get("proposed_rate", 7.5))
             original = float(params.get("original_rate", 9.5))
             floor_rate = float(params.get("floor_rate", 7.0))  # Min Luna will accept
-            
+
             print(f"[Luna] Evaluating counter: {proposed}% (original: {original}%, floor: {floor_rate}%)")
 
             if proposed < floor_rate:
@@ -228,11 +228,11 @@ class MonitorLoanHealthTool(BaseTool):
             # In production: fetch from Helius enhanced transaction API
             # For demo: return realistic mock health data
             import random
-            
+
             # Simulate realistic health metrics
             collateral_ratio = round(1.45 + random.uniform(-0.2, 0.4), 2)
             health_score = min(100, int(collateral_ratio * 70))
-            
+
             if collateral_ratio >= 1.5:
                 status = "healthy"
                 alert = None
@@ -284,7 +284,7 @@ def get_llm():
 def create_solana_lender_agent() -> Agent:
     """
     Create Luna — the Solana-native autonomous lender agent.
-    
+
     Luna can:
     - Verify borrower's SAS attestation
     - Price loans based on risk tier + Jupiter collateral data
@@ -330,7 +330,7 @@ def handle_negotiation_request(
     Handle a negotiation request from Lenny.
     Luna evaluates and responds with accept/counter.
     """
-    print(f"\n[Luna] 📩 Received negotiation request from Lenny")
+    print(f"\n[Luna][REQ] Received negotiation request from Lenny")
     print(f"[Luna]   Borrower: {borrower_pubkey[:20]}...")
     print(f"[Luna]   Amount: ${requested_amount} | Rate: {proposed_rate}% | Term: {term_months}mo")
 

@@ -11,7 +11,7 @@ import { TrendingUp, TrendingDown, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StablecoinLogo } from '@/lib/stablecoinLogos';
 
-export type Stablecoin = 'USDT' | 'USDC' | 'DAI' | 'USDD' | 'TUSD' | 'BUSD';
+export type Stablecoin = 'USDC' | 'USDT' | 'PYUSD';
 
 interface StablecoinData {
     symbol: Stablecoin;
@@ -24,6 +24,15 @@ interface StablecoinData {
 }
 
 const STABLECOIN_DATA: Record<Stablecoin, StablecoinData> = {
+    USDC: {
+        symbol: 'USDC',
+        name: 'USD Coin',
+        apy: 8.2,
+        liquidity: 92,
+        trend: 'stable',
+        recommendation: 'high',
+        description: 'Regulated, trusted by institutions'
+    },
     USDT: {
         symbol: 'USDT',
         name: 'Tether USD',
@@ -31,52 +40,16 @@ const STABLECOIN_DATA: Record<Stablecoin, StablecoinData> = {
         liquidity: 95,
         trend: 'up',
         recommendation: 'high',
-        description: 'Highest liquidity, most stable'
+        description: 'Deep liquidity and broad ecosystem support'
     },
-    USDC: {
-        symbol: 'USDC',
-        name: 'USD Coin',
-        apy: 7.8,
-        liquidity: 88,
+    PYUSD: {
+        symbol: 'PYUSD',
+        name: 'PayPal USD',
+        apy: 7.4,
+        liquidity: 64,
         trend: 'stable',
-        recommendation: 'high',
-        description: 'Regulated, trusted by institutions'
-    },
-    DAI: {
-        symbol: 'DAI',
-        name: 'Dai Stablecoin',
-        apy: 9.2,
-        liquidity: 72,
-        trend: 'up',
         recommendation: 'medium',
-        description: 'Decentralized, over-collateralized'
-    },
-    USDD: {
-        symbol: 'USDD',
-        name: 'Decentralized USD',
-        apy: 10.1,
-        liquidity: 45,
-        trend: 'down',
-        recommendation: 'low',
-        description: 'Higher yield, lower liquidity'
-    },
-    TUSD: {
-        symbol: 'TUSD',
-        name: 'TrueUSD',
-        apy: 7.2,
-        liquidity: 38,
-        trend: 'stable',
-        recommendation: 'low',
-        description: 'Audited, lower volume'
-    },
-    BUSD: {
-        symbol: 'BUSD',
-        name: 'Binance USD',
-        apy: 6.8,
-        liquidity: 52,
-        trend: 'down',
-        recommendation: 'low',
-        description: 'Being phased out by Binance'
+        description: 'Emerging liquidity with strong brand backing'
     },
 };
 
@@ -87,7 +60,7 @@ interface StablecoinSelectorProps {
 }
 
 export function StablecoinSelector({ value, onChange, showSuggestions = true }: StablecoinSelectorProps) {
-    const [selected, setSelected] = useState<Stablecoin>(value || 'USDT');
+    const [selected, setSelected] = useState<Stablecoin>(value || 'USDC');
     const [suggestions, setSuggestions] = useState<StablecoinData[]>([]);
 
     useEffect(() => {

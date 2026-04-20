@@ -107,7 +107,7 @@ export default function Settings() {
                             <SelectContent>
                                 <SelectItem value="USDC">USDC</SelectItem>
                                 <SelectItem value="USDT">USDT</SelectItem>
-                                <SelectItem value="DAI">DAI</SelectItem>
+                                <SelectItem value="PYUSD">PYUSD</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -118,7 +118,7 @@ export default function Settings() {
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="ethereum">Ethereum Mainnet</SelectItem>
+                                <SelectItem value="solana">Solana Mainnet</SelectItem>
                                 <SelectItem value="arbitrum">Arbitrum One</SelectItem>
                                 <SelectItem value="arbitrum-sepolia">Arbitrum Sepolia</SelectItem>
                                 <SelectItem value="optimism">Optimism</SelectItem>

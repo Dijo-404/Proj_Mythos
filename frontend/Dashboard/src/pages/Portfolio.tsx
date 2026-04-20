@@ -61,7 +61,7 @@ export default function Portfolio() {
                     <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
                     <p className="text-muted-foreground">
-                        Please connect your Ethereum wallet to view your portfolio
+                        Please connect your Solana wallet to view your portfolio
                     </p>
                 </Card>
             </div>
@@ -88,7 +88,7 @@ export default function Portfolio() {
                                         'Loading...'
                                     ) : (
                                         <>
-                                            <CountUp end={walletBalance} duration={1} decimals={4} /> ETH
+                                            <CountUp end={walletBalance} duration={1} decimals={4} /> SOL
                                         </>
                                     )}
                                 </p>
@@ -195,7 +195,7 @@ export default function Portfolio() {
                             />
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
-                            Wallet + Loans (ETH @ ~$3000)
+                            Wallet + Loans (SOL @ ~$180)
                         </p>
                     </Card>
                 </motion.div>

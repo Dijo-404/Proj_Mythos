@@ -48,17 +48,17 @@ const DEMO_WALLETS = [
   {
     name: 'Phantom',
     address: 'LennyBorrowerAgent7xKp3nZtRvzMxN2qW4A8m9Y1Xd',
-    icon: '👻',
+    icon: 'PH',
   },
   {
     name: 'Solflare',
-    address: 'MythosDemo4xKp3nZtRvzMxN2qW4A8m9Y1XdLend11', 
-    icon: '🔥',
+    address: 'MythosDemo4xKp3nZtRvzMxN2qW4A8m9Y1XdLend11',
+    icon: 'SF',
   },
   {
     name: 'Backpack',
     address: 'BackpackDemo8xKp3nZtRvzMxN2qW4A8m9Y1XdMythos',
-    icon: '🎒',
+    icon: 'BP',
   },
 ];
 
@@ -83,7 +83,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
 
   const connect = useCallback(async (walletName?: string) => {
     setWalletState(prev => ({ ...prev, connecting: true }));
-    
+
     try {
       // Try real Phantom wallet first
       const phantom = (window as any)?.solana;
@@ -92,7 +92,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
           const resp = await phantom.connect();
           const pubkey = resp.publicKey.toString();
           const balance = await getSolBalance(resp.publicKey);
-          
+
           setWalletState({
             connected: true,
             publicKey: pubkey,
@@ -134,7 +134,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
       // Demo mode fallback
       await new Promise(r => setTimeout(r, 800)); // Simulate connection delay
       const demoWallet = DEMO_WALLETS.find(w => w.name === walletName) || DEMO_WALLETS[0];
-      
+
       setWalletState({
         connected: true,
         publicKey: demoWallet.address,
@@ -155,7 +155,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
     // Try to disconnect real wallet
     const phantom = (window as any)?.solana;
     if (phantom?.isPhantom) phantom.disconnect().catch(() => {});
-    
+
     setWalletState({
       connected: false,
       publicKey: null,
@@ -238,7 +238,7 @@ export function WalletButton() {
         {wallet.connecting ? (
           <><span className="animate-spin">⟳</span> Connecting...</>
         ) : (
-          <><span>🔗</span> Connect Wallet</>
+          <><span>LINK</span> Connect Wallet</>
         )}
       </button>
       {showMenu && !wallet.connecting && (

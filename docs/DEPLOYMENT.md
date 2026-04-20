@@ -51,7 +51,8 @@ docker build -f Dockerfile -t lendora-full:latest .
 docker run -d \
   -p 8000:8000 \
   -e PORT=8000 \
-  -e HYDRA_MODE=auto \
+  -e SOLANA_NETWORK=mainnet-beta \
+  -e HELIUS_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY \
   lendora-backend:latest
 
 # Frontend
@@ -107,7 +108,7 @@ docker run -d \
    - Heavy dependencies excluded via `.vercelignore`
    - Ollama cannot run on Vercel (serverless limitation)
    - Use external Ollama service or disable AI agents
-   - Hydra node must be external
+   - External RPC provider must be configured (Helius)
 
 3. **For full AI features, use Railway or Render instead:**
    ```bash
@@ -156,22 +157,13 @@ git push origin main
 PORT=8000
 HOST=0.0.0.0
 OLLAMA_BASE_URL=http://localhost:11434
-HYDRA_NODE_URL=ws://127.0.0.1:4001
-HYDRA_MODE=auto
+SOLANA_NETWORK=mainnet-beta
+HELIUS_RPC_URL=https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY
 ```
 
 ### Optional (Advanced Features)
 
 ```env
-# Midnight Network
-MIDNIGHT_API_URL=https://testnet-api.midnight.network
-MIDNIGHT_API_KEY=your_api_key
-MIDNIGHT_NETWORK=testnet
-
-# PyCardano
-BLOCKFROST_PROJECT_ID=your_project_id
-CARDANO_NETWORK=testnet
-
 # Credit Oracle
 CREDIT_ORACLE_URL=https://api.oracle.com
 CREDIT_ORACLE_API_KEY=your_api_key

@@ -165,7 +165,7 @@ export default function Loans() {
                     <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
                     <p className="text-muted-foreground">
-                        Please connect your Ethereum wallet to view your loans
+                        Please connect your Solana wallet to view your loans
                     </p>
                 </Card>
             </div>

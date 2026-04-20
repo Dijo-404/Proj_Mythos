@@ -19,7 +19,20 @@ import {
 interface LoanConfigurationFormProps {
     role: 'borrower' | 'lender';
     walletAddress: string;
-    onSubmit: (data: any) => void;
+    onSubmit: (data: LoanSubmissionData) => void | Promise<void>;
+}
+
+interface LoanSubmissionData {
+    role: 'borrower' | 'lender';
+    walletAddress: string;
+    principal: number;
+    interestRate: number;
+    termMonths: number;
+    creditScore: number;
+    stablecoin: string;
+    autoConfirm: boolean;
+    lenderAddress?: string;
+    borrowerAddress?: string;
 }
 
 export function LoanConfigurationForm({ role, walletAddress, onSubmit }: LoanConfigurationFormProps) {
@@ -28,7 +41,7 @@ export function LoanConfigurationForm({ role, walletAddress, onSubmit }: LoanCon
     const [termMonths, setTermMonths] = useState<number>(12);
     const [creditScore, setCreditScore] = useState<number>(750);
     const [counterpartyAddress, setCounterpartyAddress] = useState<string>('');
-    const [stablecoin, setStablecoin] = useState<string>('USDT');
+    const [stablecoin, setStablecoin] = useState<string>('USDC');
     const [autoConfirm, setAutoConfirm] = useState<boolean>(false);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [success, setSuccess] = useState<boolean>(false);
@@ -38,7 +51,7 @@ export function LoanConfigurationForm({ role, walletAddress, onSubmit }: LoanCon
         setIsSubmitting(true);
         setSuccess(false);
 
-        const formData = {
+        const formData: LoanSubmissionData = {
             role,
             walletAddress,
             principal,
@@ -145,12 +158,12 @@ export function LoanConfigurationForm({ role, walletAddress, onSubmit }: LoanCon
                     type="text"
                     value={counterpartyAddress}
                     onChange={(e) => setCounterpartyAddress(e.target.value)}
-                    placeholder="0x..."
+                    placeholder="Base58 wallet (e.g., 7YfN...)"
                     className="font-mono text-sm"
                     required
                 />
                 <p className="text-xs text-muted-foreground">
-                    Ethereum address of the {role === 'borrower' ? 'lender' : 'borrower'}
+                    Solana wallet address of the {role === 'borrower' ? 'lender' : 'borrower'}
                 </p>
             </div>
 
@@ -162,9 +175,9 @@ export function LoanConfigurationForm({ role, walletAddress, onSubmit }: LoanCon
                     onChange={(e) => setStablecoin(e.target.value)}
                     className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                    <option value="USDT">USDT</option>
                     <option value="USDC">USDC</option>
-                    <option value="DAI">DAI</option>
+                    <option value="USDT">USDT</option>
+                    <option value="PYUSD">PYUSD</option>
                 </select>
             </div>
 

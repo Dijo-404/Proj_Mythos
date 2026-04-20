@@ -14,7 +14,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet, ChevronDown, ExternalLink, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
 import { useWallet } from '@/hooks/useWallet';
 import { useTheme } from 'next-themes';
-import type { WalletName } from '@/lib/wallet/ethereum-wallet';
+
+type WalletName = string;
 
 const ANIMATION_DURATION = 1500;
 
@@ -62,11 +63,11 @@ export default function LoginGate() {
 
     // Wallet icons mapping
     const walletIcons: Record<string, string> = {
-        metamask: '🦊',
-        coinbase: '🔵',
-        walletconnect: '🔗',
-        trust: '🛡️',
-        rainbow: '🌈',
+        metamask: 'MM',
+        coinbase: 'CB',
+        walletconnect: 'WC',
+        trust: 'TR',
+        rainbow: 'RB',
     };
 
     return (
@@ -110,17 +111,17 @@ export default function LoginGate() {
                 >
                     <motion.div
                         initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ 
-                            scale: 1, 
+                        animate={{
+                            scale: 1,
                             opacity: 1,
                             y: [0, -10, 0]
                         }}
-                        transition={{ 
+                        transition={{
                             scale: { duration: 0.6, delay: 0.4, ease: "easeOut" },
                             opacity: { duration: 0.6, delay: 0.4 },
-                            y: { 
-                                duration: 4, 
-                                repeat: Infinity, 
+                            y: {
+                                duration: 4,
+                                repeat: Infinity,
                                 ease: "easeInOut",
                                 delay: 0.8
                             }
@@ -134,7 +135,7 @@ export default function LoginGate() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, delay: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
                         className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent mb-3 tracking-tight"
-                        style={{ 
+                        style={{
                             textShadow: '0 0 20px rgba(168, 85, 247, 0.4)',
                             filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.3))'
                         }}
@@ -147,7 +148,7 @@ export default function LoginGate() {
                         transition={{ duration: 0.8, delay: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
                         className="text-sm md:text-lg text-muted-foreground font-light max-w-2xl mx-auto leading-relaxed"
                     >
-                        Privacy-First DeFi Lending on Ethereum with Zero-Knowledge Credit Scoring
+                        Privacy-First DeFi Lending on Solana with Zero-Knowledge Credit Scoring
                     </motion.p>
                 </motion.div>
 
@@ -160,7 +161,7 @@ export default function LoginGate() {
                     <Card className="p-6 md:p-8 backdrop-blur-2xl bg-card/95 border-2 border-primary/30 shadow-[0_0_20px_rgba(168,85,247,0.4)] pixel-glow relative overflow-visible">
                         <div className="absolute inset-0 pixel-shimmer pointer-events-none overflow-hidden rounded-lg" />
                         <div className="relative z-10 flex flex-col gap-4">
-                            <motion.div 
+                            <motion.div
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 1, duration: 0.5 }}
@@ -168,14 +169,14 @@ export default function LoginGate() {
                             >
                                 <motion.div
                                     className="w-16 h-16 md:w-20 md:h-20 mx-auto mb-4 rounded-lg hero-gradient flex items-center justify-center pixel-border border-primary/40"
-                                    animate={{ 
+                                    animate={{
                                         scale: [1, 1.05, 1],
                                         rotate: [0, 5, -5, 0]
                                     }}
-                                    transition={{ 
-                                        duration: 3, 
-                                        repeat: Infinity, 
-                                        ease: "easeInOut" 
+                                    transition={{
+                                        duration: 3,
+                                        repeat: Infinity,
+                                        ease: "easeInOut"
                                     }}
                                 >
                                     <Wallet className="w-8 md:w-10 h-8 md:h-10 text-primary" />
@@ -186,7 +187,7 @@ export default function LoginGate() {
                                     transition={{ delay: 1, duration: 0.5 }}
                                     className="text-2xl md:text-3xl font-bold text-gradient mb-3"
                                 >
-                                    {isConnected ? '✨ Connected!' : 'Connect Wallet'}
+                                    {isConnected ? 'Connected!' : 'Connect Wallet'}
                                 </motion.h2>
                                 {isConnected ? (
                                     <motion.div
@@ -199,7 +200,7 @@ export default function LoginGate() {
                                             {shortAddress}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
-                                            {balance} ETH • {network}
+                                            {balance} SOL • {network}
                                         </p>
                                     </motion.div>
                                 ) : (
@@ -209,7 +210,7 @@ export default function LoginGate() {
                                         transition={{ delay: 1.1, duration: 0.5 }}
                                         className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed"
                                     >
-                                        Connect your Ethereum wallet to access privacy-first DeFi lending with AI-powered negotiations
+                                        Connect your Solana wallet to access privacy-first DeFi lending with AI-powered negotiations
                                     </motion.p>
                                 )}
                             </motion.div>
@@ -230,7 +231,7 @@ export default function LoginGate() {
                                 )}
                             </AnimatePresence>
 
-                            <motion.div 
+                            <motion.div
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 1.2, duration: 0.5 }}
@@ -328,12 +329,12 @@ export default function LoginGate() {
                                                                 >
                                                                     <div className="flex items-center gap-3">
                                                                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-xl pixel-border border-primary/20">
-                                                                            {walletIcons[wallet.name] || '💳'}
+                                                                            {walletIcons[wallet.name] || 'W'}
                                                                         </div>
                                                                         <div className="text-left">
                                                                             <p className="font-semibold text-foreground">{wallet.displayName}</p>
                                                                             <p className="text-xs text-muted-foreground">
-                                                                                {wallet.name === 'metamask' ? 'Recommended' : 'Ethereum Wallet'}
+                                                                                {wallet.name === 'phantom' ? 'Recommended' : 'Solana Wallet'}
                                                                             </p>
                                                                         </div>
                                                                     </div>
@@ -353,15 +354,15 @@ export default function LoginGate() {
                                         >
                                             <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
                                             <p className="text-sm text-muted-foreground mb-4">
-                                                No Ethereum wallets detected. Install one to continue.
+                                                No Solana wallets detected. Install one to continue.
                                             </p>
                                             <a
-                                                href="https://metamask.io/download/"
+                                                href="https://phantom.app/download"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-sm text-primary hover:underline inline-flex items-center gap-1 font-medium"
                                             >
-                                                Get MetaMask
+                                                Get Phantom
                                                 <ExternalLink className="w-3 h-3" />
                                             </a>
                                         </motion.div>

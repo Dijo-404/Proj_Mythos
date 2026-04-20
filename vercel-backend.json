@@ -22,8 +22,8 @@
   ],
   "env": {
     "OLLAMA_BASE_URL": "@ollama_base_url",
-    "ETHEREUM_NETWORK": "@ethereum_network",
-    "ETHEREUM_RPC_URL": "@ethereum_rpc_url"
+    "SOLANA_NETWORK": "@solana_network",
+    "HELIUS_RPC_URL": "@helius_rpc_url"
   }
 }
 

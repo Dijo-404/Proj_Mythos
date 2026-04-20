@@ -79,14 +79,14 @@ function PaymentArrow({ from, to, amount, status }: {
 }
 
 // ============================================================================
-// Payment Stats Card  
+// Payment Stats Card
 // ============================================================================
 
 function PaymentStats({ payments }: { payments: X402PaymentEvent[] }) {
   const totalUsdc = payments
     .filter(p => p.status === 'confirmed')
     .reduce((s, p) => s + p.amount, 0);
-  
+
   const byResource = payments.reduce<Record<string, number>>((acc, p) => {
     acc[p.resource] = (acc[p.resource] || 0) + 1;
     return acc;
@@ -118,15 +118,15 @@ function X402ProtocolCard() {
   return (
     <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-xl">💸</span>
+        <span className="text-xl">PAY</span>
         <span className="text-sm font-bold text-yellow-300">x402 Protocol Active</span>
         <span className="ml-auto px-2 py-0.5 text-xs bg-yellow-500/20 text-yellow-300 rounded-full border border-yellow-500/30">
           HTTP 402
         </span>
       </div>
       <p className="text-xs text-gray-400 leading-relaxed">
-        Every AI service call is governed by the x402 payment protocol. 
-        Agents pay micropayments in USDC on Solana to access gated endpoints — 
+        Every AI service call is governed by the x402 payment protocol.
+        Agents pay micropayments in USDC on Solana to access gated endpoints —
         fully autonomous, machine-to-machine commerce.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
@@ -137,10 +137,10 @@ function X402ProtocolCard() {
           <span className="text-blue-400">$</span> Asset: USDC
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-purple-400">⚡</span> Settlement: &lt;1 second
+          <span className="text-purple-400">FAST</span> Settlement: &lt;1 second
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-amber-400">🤖</span> Payer: AI Agents
+          <span className="text-amber-400">AI</span> Payer: AI Agents
         </div>
       </div>
     </div>
@@ -157,7 +157,7 @@ export function X402PaymentVisualizer({
 }: X402PaymentVisualizerProps) {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-  // Auto-highlight latest payment briefly  
+  // Auto-highlight latest payment briefly
   useEffect(() => {
     if (payments.length > 0) {
       const latest = payments[payments.length - 1];
@@ -182,7 +182,7 @@ export function X402PaymentVisualizer({
         </div>
         {payments.length === 0 ? (
           <div className="text-center py-8 text-gray-600 text-sm">
-            <div className="text-3xl mb-2">💤</div>
+            <div className="text-3xl mb-2">IDLE</div>
             <p>No payments yet</p>
             <p className="text-xs mt-1">Start a loan request to see x402 payments flow</p>
           </div>

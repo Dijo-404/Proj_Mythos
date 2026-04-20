@@ -72,8 +72,8 @@ export const mockMarkets: MarketAsset[] = [
         utilizationRate: 48.0,
     },
     {
-        symbol: 'DAI',
-        name: 'Dai Stablecoin',
+        symbol: 'PYUSD',
+        name: 'PayPal USD',
         supplyRate: 3.2,
         borrowRate: 5.0,
         totalLiquidity: 1800000,
@@ -98,11 +98,11 @@ export const mockTransactions: Transaction[] = [
         id: 'tx-002',
         type: 'borrow',
         amount: 5000,
-        asset: 'DAI',
+        asset: 'PYUSD',
         status: 'completed',
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
+        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
         txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-        description: 'Borrowed 5,000 DAI from the lending pool',
+        description: 'Borrowed 5,000 PYUSD from the lending pool',
     },
     {
         id: 'tx-003',
@@ -118,11 +118,11 @@ export const mockTransactions: Transaction[] = [
         id: 'tx-004',
         type: 'repay',
         amount: 1500,
-        asset: 'DAI',
+        asset: 'PYUSD',
         status: 'completed',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
         txHash: '0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
-        description: 'Repaid 1,500 DAI to the lending pool',
+        description: 'Repaid 1,500 PYUSD to the lending pool',
     },
     {
         id: 'tx-005',
@@ -175,7 +175,7 @@ export const mockNotifications: Notification[] = [
         id: 'notif-004',
         type: 'success',
         title: 'Borrow Successful',
-        message: 'Your borrow of 5,000 DAI has been successfully processed.',
+        message: 'Your borrow of 5,000 PYUSD has been successfully processed.',
         timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
         read: true,
     },

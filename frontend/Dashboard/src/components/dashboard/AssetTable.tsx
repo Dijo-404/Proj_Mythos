@@ -30,8 +30,8 @@ const mockAssets: Asset[] = [
   },
   {
     id: "3",
-    name: "Dai Stablecoin",
-    symbol: "DAI",
+    name: "PayPal USD",
+    symbol: "PYUSD",
     apr: "3.8%",
     liquidity: "$15.2M",
     icon: "D",
@@ -73,7 +73,7 @@ export const AssetTable = () => {
           >
             <div className="flex items-center gap-4 flex-1">
               <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center overflow-hidden">
-                {['USDT', 'USDC', 'DAI', 'TUSD', 'BUSD', 'USDD'].includes(asset.symbol) ? (
+                {['USDT', 'USDC', 'PYUSD'].includes(asset.symbol) ? (
                   <StablecoinLogo symbol={asset.symbol as any} size={40} />
                 ) : (
                   <span className="text-xl">{asset.icon}</span>

@@ -12,18 +12,22 @@ export function sanitizeString(input: string): string {
   if (typeof input !== 'string') {
     return '';
   }
-  
-  // Remove null bytes and control characters
-  return input
-    .replace(/\0/g, '')
-    .replace(/[\x00-\x1F\x7F]/g, '')
+
+  // Remove null bytes and control characters without control-regex literals.
+  const withoutNullBytes = input.replace(/\u0000/g, '');
+  return Array.from(withoutNullBytes)
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('')
     .trim();
 }
 
 /**
- * Validate Ethereum address format
+ * Validate Solana wallet address format (base58, 32-44 chars)
  */
-export function validateEthereumAddress(address: string): boolean {
+export function validateSolanaAddress(address: string): boolean {
   if (!address || typeof address !== 'string') {
     return false;
   }
@@ -40,13 +44,13 @@ export function validateEthereumAddress(address: string): boolean {
     return false;
   }
   
-  // Ethereum address validation
-  // Must start with 0x and be 42 characters (including 0x prefix)
-  // Followed by 40 hexadecimal characters
-  const ethereumPattern = /^0x[a-fA-F0-9]{40}$/;
-  
-  return ethereumPattern.test(trimmed);
+  // Solana public key validation (base58 without 0, O, I, l)
+  const solanaPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+  return solanaPattern.test(trimmed);
 }
+
+// Removed Ethereum alias
 
 /**
  * Validate and sanitize numeric input
@@ -137,20 +141,20 @@ export function validateLoanFormData(data: Partial<LoanFormData>): {
   
   if (walletAddr && walletAddr.length > 0) {
     // Only validate if an address is actually provided
-    if (!validateEthereumAddress(walletAddr)) {
-      errors.push('Invalid wallet address format. Must start with 0x and be 42 characters');
+    if (!validateSolanaAddress(walletAddr)) {
+      errors.push('Invalid wallet address format. Must be a valid Solana base58 address');
     } else {
       sanitized.walletAddress = sanitizeString(walletAddr);
     }
   } else {
     // Wallet address is optional - use placeholder if not provided
     sanitized.walletAddress = data.role === 'borrower' 
-      ? '0x_placeholder_borrower' 
-      : '0x_placeholder_lender';
+      ? 'SOLANA_PLACEHOLDER_BORROWER'
+      : 'SOLANA_PLACEHOLDER_LENDER';
   }
   
   // Validate stablecoin
-  const validStablecoins: Stablecoin[] = ['USDT', 'USDC', 'DAI', 'USDD', 'TUSD', 'BUSD'];
+  const validStablecoins: Stablecoin[] = ['USDC', 'USDT', 'PYUSD'];
   if (!data.stablecoin || !validStablecoins.includes(data.stablecoin.toUpperCase() as Stablecoin)) {
     errors.push('Invalid stablecoin');
   } else {

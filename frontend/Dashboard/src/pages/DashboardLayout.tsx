@@ -29,6 +29,8 @@ interface LoanFormData {
     autoConfirm: boolean;
 }
 
+const DEFAULT_STABLECOIN = 'USDC';
+
 export default function DashboardLayout() {
     const [currentStep, setCurrentStep] = useState<Step>(1);
     const [role, setRole] = useState<Role>(null);
@@ -66,30 +68,43 @@ export default function DashboardLayout() {
 
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-            const response = await fetch(`${apiUrl}/api/workflow/start`, {
+            const payload = {
+                role: finalData.role,
+                borrower_address: finalData.role === 'borrower' ? finalData.walletAddress : finalData.borrowerAddress || '',
+                lender_address: finalData.role === 'lender' ? finalData.walletAddress : finalData.lenderAddress || '',
+                credit_score: finalData.creditScore || 750,
+                principal: finalData.principal,
+                interest_rate: finalData.interestRate,
+                term_months: finalData.termMonths,
+                stablecoin: finalData.stablecoin || DEFAULT_STABLECOIN,
+                auto_confirm: finalData.autoConfirm || false,
+            };
+
+            let response = await fetch(`${apiUrl}/api/solana/workflow/start`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    role: finalData.role,
-                    borrower_address: finalData.role === 'borrower' ? finalData.walletAddress : finalData.borrowerAddress || '',
-                    lender_address: finalData.role === 'lender' ? finalData.walletAddress : finalData.lenderAddress || '',
-                    credit_score: finalData.creditScore || 750,
-                    principal: finalData.principal,
-                    interest_rate: finalData.interestRate,
-                    term_months: finalData.termMonths,
-                    stablecoin: finalData.stablecoin || 'USDT',
-                    auto_confirm: finalData.autoConfirm || false,
-                }),
+                body: JSON.stringify(payload),
             });
+
+            // Backward-compatible fallback for older backend deployments.
+            if (!response.ok && response.status === 404) {
+                response = await fetch(`${apiUrl}/api/workflow/start`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+            }
 
             const result = await response.json();
             if (result.success) {
                 // Add loan to global state
                 const loanType = finalData.role === 'borrower' ? 'borrow' : 'lend';
                 const newLoan = addLoan({
-                    asset: finalData.stablecoin || 'USDT',
+                    asset: finalData.stablecoin || DEFAULT_STABLECOIN,
                     amount: finalData.principal || 0,
                     type: loanType,
                     apy: finalData.interestRate || 8.5,
@@ -103,7 +118,7 @@ export default function DashboardLayout() {
 
                 // Show success toast
                 toast.success('Loan Created Successfully!', {
-                    description: `Your ${loanType === 'borrow' ? 'borrowed' : 'lent'} loan of ${finalData.principal?.toLocaleString()} ${finalData.stablecoin || 'USDT'} has been created.`,
+                    description: `Your ${loanType === 'borrow' ? 'borrowed' : 'lent'} loan of ${finalData.principal?.toLocaleString()} ${finalData.stablecoin || DEFAULT_STABLECOIN} has been created.`,
                     duration: 5000,
                 });
 
@@ -121,7 +136,7 @@ export default function DashboardLayout() {
             // Even if API fails, add loan to local state for demo purposes
             const loanType = finalData.role === 'borrower' ? 'borrow' : 'lend';
             addLoan({
-                asset: finalData.stablecoin || 'USDT',
+                asset: finalData.stablecoin || DEFAULT_STABLECOIN,
                 amount: finalData.principal || 0,
                 type: loanType,
                 apy: finalData.interestRate || 8.5,
@@ -135,7 +150,7 @@ export default function DashboardLayout() {
 
             // Show success toast (since we still added to local state)
             toast.success('Loan Created Locally', {
-                description: `Your ${loanType === 'borrow' ? 'borrowed' : 'lent'} loan of ${finalData.principal?.toLocaleString()} ${finalData.stablecoin || 'USDT'} has been saved.`,
+                description: `Your ${loanType === 'borrow' ? 'borrowed' : 'lent'} loan of ${finalData.principal?.toLocaleString()} ${finalData.stablecoin || DEFAULT_STABLECOIN} has been saved.`,
                 duration: 5000,
             });
 
@@ -243,7 +258,7 @@ export default function DashboardLayout() {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h2 className="text-xl font-semibold mb-1 text-foreground">Connect Wallet</h2>
-                                    <p className="text-sm text-muted-foreground">Connect your Ethereum wallet to continue</p>
+                                    <p className="text-sm text-muted-foreground">Connect your Solana wallet to continue</p>
                                 </div>
                                 <Button
                                     variant="ghost"

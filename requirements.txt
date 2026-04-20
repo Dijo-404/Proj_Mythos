@@ -1,25 +1,33 @@
-# ============================================================================
-# Lendora AI - Python Dependencies
-# ============================================================================
+# ================================
+# Mythos — Python Requirements
+# AI-Native Agentic Lending on Solana
+# ================================
 
-# AI Agent Framework
-crewai[tools]>=0.108.0
-
-# LLM Integration (configured for local Ollama/Llama 3)
-langchain>=0.1.0
-langchain-openai>=0.0.5
-litellm>=1.0.0
-
-# WebSocket client (for general WebSocket support)
+# FastAPI & Server
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
 websockets>=12.0
+httpx>=0.27.0
 
-# Utilities
-python-dotenv>=1.0.0
-pydantic>=2.5.0
+# Pydantic & Data
+pydantic>=2.0.0
 
-# Requests for API calls (Oracle, general HTTP)
+# CrewAI (AI Agents — Lenny & Luna)
+crewai>=0.51.0
+crewai-tools>=0.8.0
+
+# LLM Support
+groq>=0.9.0
+openai>=1.40.0
+
+# Solana Python SDK
+solders>=0.21.0
+solana>=0.34.0
+anchorpy>=0.20.0
+
+# HTTP & Networking
+aiohttp>=3.9.0
 requests>=2.31.0
 
-# AI Agent Framework
-crewai[tools]>=0.108.0
-langtrace-python-sdk==3.8.9
+# Data utilities
+python-dotenv>=1.0.0

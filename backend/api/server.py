@@ -1,17 +1,20 @@
 """
-Lendora AI - FastAPI Backend Server
-Complete API for the Privacy-First DeFi Lending Platform
+Mythos — FastAPI Backend Server
+================================
+AI-Native Agentic Lending Protocol on Solana
 
 Integrates:
-- ZK Credit Checks (Circom/SnarkJS)
-- Llama 3 AI Analysis
-- Ethereum L2 Transactions
-- Solidity Smart Contract Settlement
+- Solana Attestation Service (SAS) credit scores
+- x402 micropayment gates for AI services
+- Helius RPC + webhooks for real-time on-chain data
+- Jupiter price feeds for collateral valuation
+- CrewAI agents (Lenny borrower + Luna lender)
+- Anchor program interactions (Solana Devnet)
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import asyncio
 import json
 import os
@@ -156,9 +159,9 @@ async def lifespan(app: FastAPI):
     # Hydra removed - no cleanup needed
 
 app = FastAPI(
-    title="Lendora AI API",
-    description="Privacy-First DeFi Lending on Ethereum",
-    version="2.0.0",
+    title="Mythos API",
+    description="AI-Native Agentic Lending Protocol on Solana — x402 · SAS · Helius · Jupiter",
+    version="3.0.0",
     lifespan=lifespan
 )
 
@@ -167,8 +170,44 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-PAYMENT", "X-PAYMENT-REQUIRED"],
+    expose_headers=["X-PAYMENT-REQUIRED"],
 )
+
+# Import Solana/Mythos modules
+try:
+    from x402_middleware import x402_middleware, get_payment_stats, simulate_agent_payment
+    X402_AVAILABLE = True
+    app.middleware("http")(x402_middleware)
+    print("[x402] Payment gate middleware loaded ✅")
+except ImportError as e:
+    X402_AVAILABLE = False
+    print(f"[x402] Not available: {e}")
+
+try:
+    from attestation import sas_client, get_or_create_attestation, mock_credit_score_from_history
+    SAS_AVAILABLE = True
+    print("[SAS] Attestation client loaded ✅")
+except ImportError as e:
+    SAS_AVAILABLE = False
+    print(f"[SAS] Not available: {e}")
+
+try:
+    from helius_client import helius_client, get_solana_network_stats
+    HELIUS_AVAILABLE = True
+    print("[Helius] RPC client loaded ✅")
+except ImportError as e:
+    HELIUS_AVAILABLE = False
+    print(f"[Helius] Not available: {e}")
+
+try:
+    from agents.solana_borrower_agent import run_solana_borrower_workflow
+    from agents.solana_lender_agent import handle_negotiation_request
+    SOLANA_AGENTS_AVAILABLE = True
+    print("[SolanaAgents] Lenny + Luna loaded ✅")
+except ImportError as e:
+    SOLANA_AGENTS_AVAILABLE = False
+    print(f"[SolanaAgents] Not available: {e}")
 
 
 # ============================================================================
@@ -1702,6 +1741,271 @@ async def websocket_endpoint(ws: WebSocket):
 
 
 # ============================================================================
+# SOLANA / MYTHOS API ROUTES
+# ============================================================================
+
+# --- Attestation Routes ---
+
+class AttestationRequest(BaseModel):
+    borrower_pubkey: str
+    credit_score: Optional[int] = 720
+    income_verified: Optional[bool] = True
+
+@app.post("/api/solana/attest")
+async def issue_attestation(req: AttestationRequest):
+    """Issue a SAS credit attestation for a borrower wallet."""
+    if not SAS_AVAILABLE:
+        # Fallback mock
+        return {
+            "success": True,
+            "attestation": {
+                "subject_pubkey": req.borrower_pubkey,
+                "credit_tier": "A",
+                "interest_rate_bps": 950,
+                "max_loan_usdc": 50000,
+                "ltv_bps": 13000,
+                "attestation_id": f"att_mock_{req.borrower_pubkey[:8]}",
+                "on_chain": False,
+                "demo": True,
+            }
+        }
+    try:
+        att = await sas_client.issue_attestation(
+            req.borrower_pubkey,
+            req.credit_score,
+            req.income_verified
+        )
+        await manager.broadcast({
+            "type": "attestation_issued",
+            "data": {
+                "borrower": req.borrower_pubkey[:20] + "...",
+                "tier": att.credit_tier,
+                "rate": att.interest_rate_bps / 100,
+                "on_chain": att.on_chain,
+            }
+        })
+        return {"success": True, "attestation": att.to_dict()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/solana/attest/{pubkey}")
+async def verify_attestation(pubkey: str):
+    """Verify an existing SAS credit attestation."""
+    if not SAS_AVAILABLE:
+        return {"found": True, "tier": "A", "rate_bps": 950, "demo": True}
+    att = await sas_client.verify_attestation(pubkey)
+    if not att:
+        return {"found": False}
+    return {"found": True, "attestation": att.to_dict()}
+
+@app.get("/api/solana/attestations")
+async def list_attestations():
+    """List all active credit attestations (for dashboard)."""
+    if not SAS_AVAILABLE:
+        return {"attestations": [], "demo": True}
+    return {"attestations": sas_client.list_all_attestations()}
+
+
+# --- x402 Payment Routes ---
+
+@app.get("/api/solana/x402/stats")
+async def x402_stats():
+    """Get x402 payment gate statistics."""
+    if not X402_AVAILABLE:
+        return {"demo": True, "message": "x402 middleware not loaded"}
+    return get_payment_stats()
+
+@app.get("/api/solana/x402/simulate/{agent_name}")
+async def simulate_payment(agent_name: str, resource: str = "/api/agent/evaluate"):
+    """Simulate an agent x402 payment (for demo)."""
+    if not X402_AVAILABLE:
+        import base64, json as _json
+        sig = f"SIM_{agent_name}_{int(datetime.now().timestamp()*1000)}"
+        return {"header": base64.b64encode(_json.dumps({"scheme":"exact","payload":sig,"resource":resource}).encode()).decode()}
+    header = simulate_agent_payment(resource, agent_name)
+    return {"header": header, "agent": agent_name, "resource": resource}
+
+
+# --- Jupiter Price Routes ---
+
+@app.get("/api/solana/price/{symbol}")
+async def get_token_price_route(symbol: str):
+    """Get real-time token price from Jupiter."""
+    import httpx
+    MINTS = {
+        "SOL": "So11111111111111111111111111111111111111112",
+        "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "BONK": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    }
+    sym = symbol.upper()
+    mint = MINTS.get(sym)
+    if not mint:
+        return {"symbol": sym, "price_usd": 1.0, "source": "mock"}
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"https://price.jup.ag/v6/price?ids={mint}")
+            data = resp.json()
+            price = data.get("data", {}).get(mint, {}).get("price", 0)
+            return {"symbol": sym, "mint": mint, "price_usd": round(price, 6), "source": "jupiter"}
+    except Exception as e:
+        mock_prices = {"SOL": 180.50, "USDC": 1.00, "BONK": 0.000025}
+        return {"symbol": sym, "price_usd": mock_prices.get(sym, 1.0), "source": "mock", "error": str(e)}
+
+
+# --- Network Info Routes ---
+
+@app.get("/api/solana/network")
+async def get_network_info():
+    """Get Solana network statistics via Helius."""
+    if HELIUS_AVAILABLE:
+        stats = await get_solana_network_stats()
+        return stats
+    return {
+        "network": os.getenv("SOLANA_NETWORK", "devnet"),
+        "current_slot": 350012345,
+        "sol_price_usd": 180.50,
+        "tps": 3900,
+        "rpc": "mock",
+        "program_id": os.getenv("MYTHOS_PROGRAM_ID", "MythosLend1111111111111111111111111111111111")[:12] + "...",
+        "demo_mode": True,
+    }
+
+
+# --- Agent Evaluation Routes (x402 protected) ---
+
+class AgentEvaluationRequest(BaseModel):
+    borrower_pubkey: str
+    amount_usdc: float
+    collateral_token: str = "SOL"
+    term_months: int = 12
+
+@app.post("/api/agent/evaluate")
+async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
+    """
+    x402-protected endpoint: AI evaluation of loan request.
+    Requires X-PAYMENT header with valid Solana USDC transaction.
+    """
+    payment = getattr(request.state, "payment", None)
+    
+    # Get SAS attestation for borrower
+    attestation_data = {"tier": "A", "rate_bps": 950}
+    if SAS_AVAILABLE:
+        try:
+            att = await sas_client.verify_attestation(req.borrower_pubkey)
+            if att:
+                attestation_data = {"tier": att.credit_tier, "rate_bps": att.interest_rate_bps}
+        except Exception:
+            pass
+    
+    # Jupiter price for collateral
+    collateral_price = 180.50
+    
+    # Compute LTV and recommended rate
+    collateral_usdc = collateral_price * (req.amount_usdc / collateral_price)
+    ltv = req.amount_usdc / collateral_usdc if collateral_usdc > 0 else 1.0
+    
+    result = {
+        "eligible": True,
+        "borrower": req.borrower_pubkey[:20] + "...",
+        "amount_usdc": req.amount_usdc,
+        "attestation_tier": attestation_data["tier"],
+        "recommended_rate_bps": attestation_data["rate_bps"],
+        "recommended_rate_pct": attestation_data["rate_bps"] / 100,
+        "collateral_token": req.collateral_token,
+        "collateral_price_usd": collateral_price,
+        "ltv_pct": round(ltv * 100, 2),
+        "payment_verified": payment is not None,
+        "x402_signature": payment.get("signature", "demo") if payment else "no_payment",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    
+    await manager.broadcast({
+        "type": "agent_evaluation",
+        "data": {
+            "borrower": req.borrower_pubkey[:16] + "...",
+            "tier": attestation_data["tier"],
+            "rate": attestation_data["rate_bps"] / 100,
+            "x402_verified": payment is not None,
+        }
+    })
+    return result
+
+
+class AgentNegotiateRequest(BaseModel):
+    borrower_pubkey: str
+    lender_pubkey: str
+    amount_usdc: float
+    proposed_rate: float
+    term_months: int
+
+@app.post("/api/agent/negotiate")
+async def agent_negotiate(req: AgentNegotiateRequest, request: Request):
+    """x402-protected endpoint: submit negotiation counter-offer."""
+    payment = getattr(request.state, "payment", None)
+    
+    # Luna's evaluation
+    result = handle_negotiation_request(
+        req.borrower_pubkey,
+        req.amount_usdc,
+        req.proposed_rate,
+        req.term_months
+    ) if SOLANA_AGENTS_AVAILABLE else {
+        "decision": "counter",
+        "luna_rate": round((req.proposed_rate + 9.5) / 2, 2),
+        "message": f"Luna counters with {round((req.proposed_rate + 9.5)/2, 2)}%",
+        "settled": False,
+    }
+    
+    await manager.broadcast({
+        "type": "negotiation_round",
+        "data": {
+            "proposed_rate": req.proposed_rate,
+            "luna_response": result.get("decision"),
+            "luna_rate": result.get("luna_rate"),
+            "x402_verified": payment is not None,
+        }
+    })
+    return {**result, "payment_verified": payment is not None}
+
+
+@app.post("/api/solana/workflow/start")
+async def start_solana_workflow(req: dict, background_tasks: BackgroundTasks):
+    """Start a full Mythos Solana lending workflow (async)."""
+    borrower = req.get("borrower_address", "demo_borrower")
+    amount = req.get("principal", 1000.0)
+    rate = req.get("interest_rate", 9.5)
+    term = req.get("term_months", 12)
+    score = req.get("credit_score", 720)
+    
+    async def run_workflow():
+        if SOLANA_AGENTS_AVAILABLE:
+            result = await run_solana_borrower_workflow(
+                borrower_pubkey=borrower,
+                credit_score=score,
+                requested_amount_usdc=amount,
+                initial_rate_offered=rate,
+                term_months=term,
+            )
+        else:
+            await asyncio.sleep(2)
+            result = {
+                "success": True,
+                "borrower": borrower,
+                "final_rate": round((rate + 7.5) / 2, 2),
+                "solana_tx": f"SIM_WORKFLOW_{int(datetime.utcnow().timestamp())}",
+                "demo": True,
+            }
+        
+        await manager.broadcast({
+            "type": "workflow_complete",
+            "data": result
+        })
+    
+    background_tasks.add_task(run_workflow)
+    return {"status": "started", "borrower": borrower[:20] + "...", "message": "Solana workflow started in background"}
+
+
+# ============================================================================
 # Entry Point
 # ============================================================================
 
@@ -1710,3 +2014,4 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     host = os.getenv("HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port)
+

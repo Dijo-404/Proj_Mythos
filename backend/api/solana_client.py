@@ -17,15 +17,22 @@ Usage (demo mode enabled by SOLANA_DEMO_MODE=true):
 import os
 import hashlib
 import struct
-import base58
 import base64
 import json
 import asyncio
-import httpx
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 
 try:
+    import httpx
+    HTTPX_AVAILABLE = True
+except ImportError as e:
+    httpx = None
+    HTTPX_AVAILABLE = False
+    print(f"[SolanaClient] httpx unavailable ({e}) — real RPC calls disabled")
+
+try:
+    import base58
     from solders.keypair import Keypair
     from solders.pubkey import Pubkey
     from solders.transaction import Transaction
@@ -34,9 +41,10 @@ try:
     from solders.hash import Hash
     from solders.system_program import ID as SYS_PROGRAM_ID
     SOLDERS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    base58 = None
     SOLDERS_AVAILABLE = False
-    print("[SolanaClient] solders not installed — demo mode only")
+    print(f"[SolanaClient] Solana deps unavailable ({e}) — demo mode only")
 
 
 # ============================================================================
@@ -64,7 +72,9 @@ SPL_TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 SPL_RENT_SYSVAR_ID  = "SysvarRent111111111111111111111111111111111"
 
 # USDC mint on devnet
-USC_MINT_DEVNET = os.getenv("USDC_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+USDC_MINT_DEVNET = os.getenv("USDC_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+# Backward-compatible alias for older code paths.
+USC_MINT_DEVNET = USDC_MINT_DEVNET
 
 
 # ============================================================================
@@ -119,6 +129,9 @@ def generate_and_print_keypair() -> Dict[str, str]:
 
 async def _rpc(method: str, params: list) -> Any:
     """Raw JSON-RPC call to Solana."""
+    if not HTTPX_AVAILABLE:
+        raise RuntimeError("httpx is not installed; install requirements.txt for real Solana RPC calls")
+
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(RPC_URL, json={
             "jsonrpc": "2.0", "id": 1, "method": method, "params": params
@@ -216,18 +229,22 @@ async def initialize_loan_tx(
 
     if DEMO_MODE or not SOLDERS_AVAILABLE:
         sim_sig = f"SIM_INIT_LOAN_{int(datetime.utcnow().timestamp())}"
-        print(f"[SolanaClient] 🔵 Demo mode — simulated initialize_loan: {sim_sig}")
+        print(f"[SolanaClient] 📗 Demo mode — simulated initialize_loan: {sim_sig}")
         return {
             "signature": sim_sig,
             "slot": 350_000_000,
             "explorer_url": f"https://explorer.solana.com/tx/{sim_sig}?cluster=devnet",
             "demo": True,
             "program_id": MYTHOS_PROGRAM_ID,
+            "borrower": borrower_pubkey,
             "amount_usdc": amount_usdc_ui,
             "rate_bps": initial_rate_bps,
             "term_months": term_months,
             "note": "Set SOLANA_DEMO_MODE=false + BACKEND_SIGNER_KEYPAIR for real devnet tx",
         }
+
+    if not HTTPX_AVAILABLE:
+        raise RuntimeError("httpx is not installed; install requirements.txt for real Solana RPC calls")
 
     signer = load_signer_keypair()
     if not signer:
@@ -236,9 +253,27 @@ async def initialize_loan_tx(
             "Run /api/solana/generate-keypair to create one, then fund it with airdrop."
         )
 
-    program_id   = Pubkey.from_string(MYTHOS_PROGRAM_ID)
-    borrower_pub = Pubkey.from_string(borrower_pubkey)
-    payer        = signer.pubkey()  # payer signs as borrower for devnet demo
+    program_id = Pubkey.from_string(MYTHOS_PROGRAM_ID)
+    payer      = signer.pubkey()
+
+    # -------------------------------------------------------
+    # IMPORTANT: The Anchor `borrower` account must be a
+    # Signer. Only the backend keypair can satisfy that
+    # constraint in this demo endpoint. If the caller passes
+    # a different borrower_pubkey the PDA seeds would point
+    # to a different address than what Anchor derives from
+    # the actual signer, causing InvalidAccountData preflight.
+    #
+    # Fix: always use the signer as borrower_pub.
+    # Production flow: the user's wallet signs client-side.
+    # -------------------------------------------------------
+    if borrower_pubkey and borrower_pubkey != str(payer):
+        print(
+            f"[SolanaClient] ⚠️  borrower_pubkey {borrower_pubkey[:8]}... "
+            f"overridden to signer {str(payer)[:8]}... "
+            "(backend signer must be Anchor borrower signer)"
+        )
+    borrower_pub = payer  # always: backend signer == Anchor borrower
 
     amount_usdc_le = struct.pack("<Q", amount_usdc_lamports)  # 8 bytes LE
 
@@ -258,7 +293,7 @@ async def initialize_loan_tx(
     )
 
     # collateral_mint — USDC on devnet (the borrower's collateral token)
-    collateral_mint = Pubkey.from_string(USC_MINT_DEVNET)
+    collateral_mint = Pubkey.from_string(USDC_MINT_DEVNET)
 
     # The borrower's USDC ATA (must exist and be funded before calling this)
     # ATA = Associated Token Account PDA:
@@ -331,6 +366,7 @@ async def initialize_loan_tx(
         "demo": False,
         "confirmed": confirmed,
         "program_id": MYTHOS_PROGRAM_ID,
+        "borrower": str(payer),          # always == signer.pubkey() for demo endpoint
         "loan_pda": str(loan_pda),
         "collateral_vault": str(vault_pda),
         "amount_usdc": amount_usdc_ui,
@@ -343,9 +379,6 @@ async def initialize_loan_tx(
 # USDC Transfer Verifier (for x402 gate)
 # ============================================================================
 
-USDC_MINT_DEVNET = os.getenv(
-    "USDC_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-)
 MIN_X402_USDC = 0.001  # minimum x402 payment in USDC
 
 

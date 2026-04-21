@@ -219,25 +219,41 @@ pub mod mythos {
     /// Collateral flows: vault → borrower (returned).
     /// Status → Repaid.
     pub fn repay_loan(ctx: Context<RepayLoan>) -> Result<()> {
-        let loan = &mut ctx.accounts.loan_account;
-        require!(loan.status == LoanStatus::Active, MythosError::LoanNotActive);
-        require!(
-            ctx.accounts.borrower.key() == loan.borrower,
-            MythosError::Unauthorized
-        );
+        // Extract all needed values from loan before any CPI calls
+        let loan_id;
+        let principal;
+        let interest;
+        let total_repayment;
+        let collateral_to_return;
+        let bump;
+        let borrower_key;
+        {
+            let loan = &ctx.accounts.loan_account;
+            require!(loan.status == LoanStatus::Active, MythosError::LoanNotActive);
+            require!(
+                ctx.accounts.borrower.key() == loan.borrower,
+                MythosError::Unauthorized
+            );
 
-        // Calculate total repayment = principal + (principal * rate_bps / 10000)
-        let interest = loan
-            .principal
-            .checked_mul(loan.interest_rate_bps as u64)
-            .ok_or(MythosError::Overflow)?
-            .checked_div(BPS_DIVISOR)
-            .ok_or(MythosError::Overflow)?;
+            loan_id = loan.loan_id;
+            principal = loan.principal;
+            bump = loan.bump;
+            borrower_key = loan.borrower;
+            collateral_to_return = loan.collateral_amount;
 
-        let total_repayment = loan
-            .principal
-            .checked_add(interest)
-            .ok_or(MythosError::Overflow)?;
+            // Calculate total repayment = principal + (principal * rate_bps / 10000)
+            interest = loan
+                .principal
+                .checked_mul(loan.interest_rate_bps as u64)
+                .ok_or(MythosError::Overflow)?
+                .checked_div(BPS_DIVISOR)
+                .ok_or(MythosError::Overflow)?;
+
+            total_repayment = loan
+                .principal
+                .checked_add(interest)
+                .ok_or(MythosError::Overflow)?;
+        }
 
         // Transfer stablecoin from borrower → lender
         let cpi_accounts = Transfer {
@@ -251,9 +267,7 @@ pub mod mythos {
 
         // Return collateral from vault → borrower
         // The vault is a PDA-owned token account; we sign with the loan PDA seeds.
-        let loan_id_bytes = loan.loan_id.to_le_bytes();
-        let bump = loan.bump;
-        let borrower_key = loan.borrower;
+        let loan_id_bytes = loan_id.to_le_bytes();
         let seeds: &[&[u8]] = &[
             b"loan",
             borrower_key.as_ref(),
@@ -272,25 +286,26 @@ pub mod mythos {
             vault_cpi_accounts,
             signer_seeds,
         );
-        token::transfer(vault_cpi_ctx, loan.collateral_amount)?;
+        token::transfer(vault_cpi_ctx, collateral_to_return)?;
 
-        let collateral_returned = loan.collateral_amount;
+        // Now mutate the loan account
+        let loan = &mut ctx.accounts.loan_account;
         loan.amount_repaid = total_repayment;
         loan.collateral_amount = 0;
         loan.status = LoanStatus::Repaid;
 
         emit!(LoanRepaid {
-            loan_id: loan.loan_id,
+            loan_id,
             amount_repaid: total_repayment,
             interest_paid: interest,
-            collateral_returned,
+            collateral_returned: collateral_to_return,
         });
 
         msg!(
             "Loan {} repaid. Total: {} (principal: {}, interest: {})",
-            loan.loan_id,
+            loan_id,
             total_repayment,
-            loan.principal,
+            principal,
             interest
         );
         Ok(())
@@ -302,46 +317,56 @@ pub mod mythos {
     /// Collateral flows: vault → liquidator.
     /// Status → Liquidated.
     pub fn liquidate_loan(ctx: Context<LiquidateLoan>) -> Result<()> {
-        let loan = &mut ctx.accounts.loan_account;
-        require!(loan.status == LoanStatus::Active, MythosError::LoanNotActive);
+        // Extract values before CPI to avoid borrow conflicts
+        let loan_id;
+        let bump;
+        let borrower_key;
+        let collateral_seized;
+        {
+            let loan = &ctx.accounts.loan_account;
+            require!(loan.status == LoanStatus::Active, MythosError::LoanNotActive);
 
-        // Check that collateral ratio is below liquidation threshold.
-        // outstanding = principal + interest - amount_repaid
-        let interest = loan
-            .principal
-            .checked_mul(loan.interest_rate_bps as u64)
-            .ok_or(MythosError::Overflow)?
-            .checked_div(BPS_DIVISOR)
-            .ok_or(MythosError::Overflow)?;
-
-        let outstanding = loan
-            .principal
-            .checked_add(interest)
-            .ok_or(MythosError::Overflow)?
-            .checked_sub(loan.amount_repaid)
-            .ok_or(MythosError::Overflow)?;
-
-        // current_ratio_bps = (collateral_amount * 10000) / outstanding
-        // For devnet we assume 1:1 price ratio between collateral and stablecoin.
-        let current_ratio_bps = if outstanding > 0 {
-            loan.collateral_amount
-                .checked_mul(BPS_DIVISOR)
+            // Check that collateral ratio is below liquidation threshold.
+            // outstanding = principal + interest - amount_repaid
+            let interest = loan
+                .principal
+                .checked_mul(loan.interest_rate_bps as u64)
                 .ok_or(MythosError::Overflow)?
-                .checked_div(outstanding)
-                .ok_or(MythosError::Overflow)?
-        } else {
-            u64::MAX // fully repaid, cannot liquidate
-        };
+                .checked_div(BPS_DIVISOR)
+                .ok_or(MythosError::Overflow)?;
 
-        require!(
-            current_ratio_bps < ctx.accounts.protocol_state.liquidation_threshold_bps as u64,
-            MythosError::CollateralSufficient
-        );
+            let outstanding = loan
+                .principal
+                .checked_add(interest)
+                .ok_or(MythosError::Overflow)?
+                .checked_sub(loan.amount_repaid)
+                .ok_or(MythosError::Overflow)?;
+
+            // current_ratio_bps = (collateral_amount * 10000) / outstanding
+            // For devnet we assume 1:1 price ratio between collateral and stablecoin.
+            let current_ratio_bps = if outstanding > 0 {
+                loan.collateral_amount
+                    .checked_mul(BPS_DIVISOR)
+                    .ok_or(MythosError::Overflow)?
+                    .checked_div(outstanding)
+                    .ok_or(MythosError::Overflow)?
+            } else {
+                u64::MAX // fully repaid, cannot liquidate
+            };
+
+            require!(
+                current_ratio_bps < ctx.accounts.protocol_state.liquidation_threshold_bps as u64,
+                MythosError::CollateralSufficient
+            );
+
+            loan_id = loan.loan_id;
+            bump = loan.bump;
+            borrower_key = loan.borrower;
+            collateral_seized = loan.collateral_amount;
+        }
 
         // Transfer collateral from vault → liquidator
-        let loan_id_bytes = loan.loan_id.to_le_bytes();
-        let bump = loan.bump;
-        let borrower_key = loan.borrower;
+        let loan_id_bytes = loan_id.to_le_bytes();
         let seeds: &[&[u8]] = &[
             b"loan",
             borrower_key.as_ref(),
@@ -349,8 +374,6 @@ pub mod mythos {
             &[bump],
         ];
         let signer_seeds = &[seeds];
-
-        let collateral_seized = loan.collateral_amount;
 
         let vault_cpi_accounts = Transfer {
             from: ctx.accounts.collateral_vault.to_account_info(),
@@ -364,18 +387,20 @@ pub mod mythos {
         );
         token::transfer(vault_cpi_ctx, collateral_seized)?;
 
+        // Now mutate the loan account
+        let loan = &mut ctx.accounts.loan_account;
         loan.collateral_amount = 0;
         loan.status = LoanStatus::Liquidated;
 
         emit!(LoanLiquidated {
-            loan_id: loan.loan_id,
+            loan_id,
             liquidator: ctx.accounts.liquidator.key(),
             collateral_seized,
         });
 
         msg!(
             "Loan {} liquidated by {}. Collateral seized: {}",
-            loan.loan_id,
+            loan_id,
             ctx.accounts.liquidator.key(),
             collateral_seized
         );

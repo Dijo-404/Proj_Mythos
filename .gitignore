@@ -1,70 +1,50 @@
-<<<<<<< HEAD
 # Dependencies
 node_modules/
+frontend/Dashboard/node_modules/
 
-# Environment files
+# Environment files - never commit secrets
 .env
+.env.*
 .env.local
 .env.*.local
+frontend/Dashboard/.env
+frontend/Dashboard/.env.*
 
 # Rust / Anchor build artifacts
+target/
 **/target/
 *.so
 *.rlib
+target_verify/
+target/deploy/*.json
 
 # Cargo lock files in subdirectories (keep root Cargo.lock)
 programs/Cargo.lock
 programs/mythos/Cargo.lock
 
-# Python cache
+# Frontend build artifacts
+dist/
+frontend/Dashboard/dist/
+frontend/Dashboard/package-lock.json
+*.tsbuildinfo
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.venv/
+venv/
 
-# TypeScript build info
-*.tsbuildinfo
-
-# IDE / Editor
+# IDE / Editor / OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
+Thumbs.db
 
 # Logs
 *.log
 npm-debug.log*
-
-# OS files
-Thumbs.db
-=======
-﻿
-# Environment files - never commit secrets
-.env
-.env.*
-frontend/Dashboard/.env
-frontend/Dashboard/.env.*
-
-# Rust / Anchor build artifacts
-target/
-
-# Solana / Anchor generated deploy keypairs
-target/deploy/*.json
-
-# Frontend build + lockfile + cache
-frontend/Dashboard/dist/
-frontend/Dashboard/node_modules/
-frontend/Dashboard/package-lock.json
-frontend/Dashboard/tsconfig.app.tsbuildinfo
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# Cargo off-source verify dirs
-target_verify/
->>>>>>> downloads/main

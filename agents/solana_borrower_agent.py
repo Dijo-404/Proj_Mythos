@@ -45,7 +45,7 @@ LENNY_WALLET = os.getenv(
     "LennyBorrowerAgentXXXXXXXXXXXXXXXXXXXXXXXX"
 )
 
-PROGRAM_ID = os.getenv("MYTHOS_PROGRAM_ID", "MythosLend1111111111111111111111111111111111")
+PROGRAM_ID = os.getenv("MYTHOS_PROGRAM_ID", "FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM")
 
 
 # ============================================================================

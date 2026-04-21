@@ -1866,7 +1866,7 @@ async def get_network_info():
         "sol_price_usd": 180.50,
         "tps": 3900,
         "rpc": "mock",
-        "program_id": os.getenv("MYTHOS_PROGRAM_ID", "MythosLend1111111111111111111111111111111111")[:12] + "...",
+        "program_id": os.getenv("MYTHOS_PROGRAM_ID", "FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM")[:12] + "...",
         "demo_mode": True,
     }
 

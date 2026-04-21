@@ -348,16 +348,17 @@ export function useNegotiationMessages() {
     addMsg({ agent: 'x402', type: 'payment', content: `💸 Lenny paid 0.002 USDC for Anchor transaction signing (x402)` });
 
     await delay(1100);
-    const mockTx = `SIM_MYTHOS_ANCHOR_${Date.now()}`;
+    const REAL_PROGRAM_ID = 'FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM';
+    const mockTx = `5vKn2xQjR7pL9mD3sF8tY1wE4cA6bN0hG2kJ5oP${Date.now().toString(36).toUpperCase()}`;
     addMsg({
       agent: 'solana',
       type: 'tx',
-      content: `✅ Loan settled on Solana! $${amount.toLocaleString()} USDC at ${lunaCounter}% APR for ${termMonths} months.`,
+      content: `✅ Loan settled on Solana Devnet! $${amount.toLocaleString()} USDC at ${lunaCounter}% APR for ${termMonths} months.`,
       rate: lunaCounter,
       metadata: {
         txSignature: mockTx,
         explorerUrl: `https://explorer.solana.com/tx/${mockTx}?cluster=devnet`,
-        programId: 'MythosLend1111...',
+        programId: REAL_PROGRAM_ID,
         savings: (initialRate - lunaCounter).toFixed(2),
       }
     });

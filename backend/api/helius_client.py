@@ -25,7 +25,7 @@ HELIUS_RPC_URL = f"https://{SOLANA_NETWORK}.helius-rpc.com/?api-key={HELIUS_API_
 HELIUS_API_URL = f"https://api{'-dev' if SOLANA_NETWORK == 'devnet' else ''}.helius.xyz/v0"
 
 # Mythos program ID
-MYTHOS_PROGRAM_ID = os.getenv("MYTHOS_PROGRAM_ID", "MythosLend1111111111111111111111111111111111")
+MYTHOS_PROGRAM_ID = os.getenv("MYTHOS_PROGRAM_ID", "FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM")
 
 
 class HeliusClient:

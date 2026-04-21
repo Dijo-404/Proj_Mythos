@@ -52,7 +52,7 @@ const DEMO_WALLETS = [
   },
   {
     name: 'Solflare',
-    address: 'MythosDemo4xKp3nZtRvzMxN2qW4A8m9Y1XdLend11', 
+    address: 'MythosDemo4xKp3nZtRvzMxN2qW4A8m9Y1XdLend11',
     icon: '🔥',
   },
   {
@@ -60,7 +60,49 @@ const DEMO_WALLETS = [
     address: 'BackpackDemo8xKp3nZtRvzMxN2qW4A8m9Y1XdMythos',
     icon: '🎒',
   },
+  {
+    name: 'MetaMask',
+    address: 'MetaMaskSnapDemo9xKp3nZtRvzMxN2qW4A8m9Y1XdMythos',
+    icon: '🦊',
+  },
 ];
+
+// MetaMask Solana Snap ID
+const METAMASK_SOLANA_SNAP_ID = 'npm:@solana/metamask-snap';
+
+/**
+ * Try to connect MetaMask via its Solana Snap.
+ * Returns a Solana base58 public key, or null if unavailable.
+ */
+async function connectMetaMaskSnap(): Promise<string | null> {
+  const mm = (window as any)?.ethereum;
+  if (!mm?.isMetaMask) return null;
+
+  try {
+    // 1. Request snap installation / access
+    await mm.request({
+      method: 'wallet_requestSnaps',
+      params: { [METAMASK_SOLANA_SNAP_ID]: {} },
+    });
+
+    // 2. Get Solana public key from snap
+    const result = await mm.request({
+      method: 'wallet_invokeSnap',
+      params: {
+        snapId: METAMASK_SOLANA_SNAP_ID,
+        request: { method: 'getPublicKey', params: { network: 'devnet', confirm: false } },
+      },
+    });
+
+    // result is a base58 Solana pubkey string
+    if (typeof result === 'string' && result.length >= 32) return result;
+    return null;
+  } catch (err) {
+    console.warn('[MetaMask Snap] Snap unavailable or rejected:', err);
+    return null;
+  }
+}
+
 
 // ============================================================================
 // Provider Component
@@ -130,6 +172,27 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
           console.log('[Wallet] Solflare not available, using demo');
         }
       }
+
+      // Try MetaMask Solana Snap
+      if (walletName === 'MetaMask') {
+        const snapPubkey = await connectMetaMaskSnap();
+        if (snapPubkey) {
+          const balance = await getSolBalance({ toString: () => snapPubkey } as any).catch(() => 0);
+          setWalletState({
+            connected: true,
+            publicKey: snapPubkey,
+            shortAddress: shortenAddress(snapPubkey),
+            balance,
+            network: SOLANA_NETWORK,
+            connecting: false,
+            walletName: 'MetaMask (Snap)',
+          });
+          return;
+        }
+        // MetaMask not installed or snap rejected — fall through to demo
+        console.log('[Wallet] MetaMask Snap unavailable, using demo mode');
+      }
+
 
       // Demo mode fallback
       await new Promise(r => setTimeout(r, 800)); // Simulate connection delay
@@ -242,24 +305,43 @@ export function WalletButton() {
         )}
       </button>
       {showMenu && !wallet.connecting && (
-        <div className="absolute right-0 top-10 z-50 w-52 rounded-xl bg-gray-900 border border-purple-500/30 shadow-xl p-2">
+        <div className="absolute right-0 top-10 z-50 w-56 rounded-xl bg-gray-900 border border-purple-500/30 shadow-xl p-2">
           <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-700 mb-1">
             Select wallet ({SOLANA_NETWORK})
           </div>
-          {DEMO_WALLETS.map(w => (
-            <button
-              key={w.name}
-              id={`wallet-${w.name.toLowerCase()}-btn`}
-              onClick={() => { wallet.connect(w.name); setShowMenu(false); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-200 hover:bg-purple-500/10 rounded-lg transition-colors"
-            >
-              <span>{w.icon}</span>
-              {w.name}
-              <span className="ml-auto text-xs text-gray-500">Demo</span>
-            </button>
-          ))}
+          {DEMO_WALLETS.map(w => {
+            const isMetaMask = w.name === 'MetaMask';
+            const mmInstalled = isMetaMask && !!(window as any)?.ethereum?.isMetaMask;
+            return (
+              <button
+                key={w.name}
+                id={`wallet-${w.name.toLowerCase()}-btn`}
+                onClick={() => { wallet.connect(w.name); setShowMenu(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-200 hover:bg-purple-500/10 rounded-lg transition-colors"
+              >
+                <span>{w.icon}</span>
+                <span>{w.name}</span>
+                {isMetaMask && (
+                  <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                    mmInstalled
+                      ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                      : 'bg-gray-700/50 text-gray-500'
+                  }`}>
+                    {mmInstalled ? 'Snap' : 'Demo'}
+                  </span>
+                )}
+                {!isMetaMask && (
+                  <span className="ml-auto text-xs text-gray-500">Demo</span>
+                )}
+              </button>
+            );
+          })}
+          <div className="px-3 pt-2 mt-1 border-t border-gray-700/50 text-[10px] text-gray-600 leading-relaxed">
+            MetaMask uses Solana Snap — no EVM
+          </div>
         </div>
       )}
+
     </div>
   );
 }

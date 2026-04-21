@@ -21,7 +21,7 @@ export interface NegotiationMessage {
   type: 'message' | 'offer' | 'counter' | 'accept' | 'payment' | 'tx' | 'attestation';
   content: string;
   rate?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 interface AgentNegotiationFeedProps {
@@ -106,17 +106,17 @@ function MessageBubble({ msg }: { msg: NegotiationMessage }) {
           )}
           {msg.metadata?.txSignature && (
             <a
-              href={getExplorerUrl(msg.metadata.txSignature)}
+              href={getExplorerUrl(String(msg.metadata.txSignature))}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-1 flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 underline"
             >
-              🔗 {shortenAddress(msg.metadata.txSignature, 8)} ↗
+              🔗 {shortenAddress(String(msg.metadata.txSignature), 8)} ↗
             </a>
           )}
           {msg.metadata?.attestationId && (
             <div className="mt-1 font-mono text-xs opacity-70">
-              SAS: {msg.metadata.attestationId.slice(0, 20)}...
+              SAS: {String(msg.metadata.attestationId).slice(0, 20)}...
             </div>
           )}
         </div>

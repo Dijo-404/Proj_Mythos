@@ -1444,7 +1444,13 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
       - Skips verification, returns payment_verified="demo"
     """
     # --- x402 Payment Verification ---
-    payment_sig = request.headers.get("X-Payment-Signature", "")
+    # Accept payment sig from EITHER:
+    #  a) request.state.payment_sig  (set by unified x402_middleware)
+    #  b) X-Payment-Signature header (direct submission, bypassed middleware)
+    payment_sig = (
+        getattr(request.state, "payment_sig", None)
+        or request.headers.get("X-Payment-Signature", "")
+    )
     x402_result: dict = {}
 
     if X402_DEMO_MODE:
@@ -1465,8 +1471,21 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
             }
         )
     else:
+        treasury = os.getenv("TREASURY_WALLET", "")
+        if not treasury:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "Server misconfiguration",
+                    "message": "TREASURY_WALLET env var required when X402_DEMO_MODE=false",
+                }
+            )
+
         if SOLANA_CLIENT_AVAILABLE:
-            x402_result = await verify_usdc_transfer(payment_sig)
+            x402_result = await verify_usdc_transfer(
+                payment_sig,
+                expected_recipient=treasury,
+            )
         else:
             x402_result = {"verified": False, "error": "solana_client unavailable", "signature": payment_sig}
 

@@ -30,7 +30,7 @@ interface WorkflowStep {
   step: number;
   name: string;
   status: string;
-  details: any;
+  details: unknown;
   timestamp: string;
 }
 
@@ -116,19 +116,31 @@ export function useWebSocket() {
     }
   }, []);
 
-  const handleMessage = (message: any) => {
+  interface WebSocketMessage {
+    type: string;
+    /** Most server messages carry a `data` payload */
+    data?: Record<string, unknown>;
+    /** agent_status messages carry `agents` instead of `data` */
+    agents?: AgentStatus;
+    /** workflow_step messages carry `step` */
+    step?: WorkflowStep;
+  }
+
+  const handleMessage = (message: WebSocketMessage) => {
     switch (message.type) {
       case 'connected':
         console.log('WebSocket connection confirmed');
         break;
 
-      case 'agent_status':
+      case 'agent_status': {
+        const status = (message.agents ?? message.data) as AgentStatus;
         setState(prev => ({
           ...prev,
-          agentStatus: message.data,
-          stats: { ...prev.stats, agentStatus: message.data.status }
+          agentStatus: status,
+          stats: { ...prev.stats, agentStatus: status.status }
         }));
         break;
+      }
 
       case 'conversation_update':
         // Fetch latest conversation
@@ -137,32 +149,38 @@ export function useWebSocket() {
 
       case 'network_status':
       case 'l2_status':
-      case 'hydra_status': // Backward-compat alias — backend now sends network_status
+      case 'hydra_status': { // Backward-compat alias — backend now sends network_status
+        const d = message.data as { connected?: boolean; network_state?: string; head_state?: string; active_negotiations?: number; current_session_id?: string; current_head_id?: string };
         setState(prev => ({
           ...prev,
           l2Status: {
             mode: 'l2',  // Always Solana L1 — mode field kept for UI compat
-            connected: message.data.connected,
-            network_state: message.data.network_state || message.data.head_state || 'devnet',
-            active_negotiations: message.data.active_negotiations,
-            current_session_id: message.data.current_session_id || message.data.current_head_id
-          }
+            connected: d.connected ?? false,
+            network_state: d.network_state || d.head_state || 'devnet',
+            active_negotiations: d.active_negotiations,
+            current_session_id: d.current_session_id || d.current_head_id
+          } as L2Status
         }));
         break;
+      }
 
-      case 'workflow_step':
+      case 'workflow_step': {
+        const step = (message.step ?? message.data) as WorkflowStep;
         setState(prev => ({
           ...prev,
-          workflowSteps: [...prev.workflowSteps.slice(-9), message.data] // Keep last 10 steps
+          workflowSteps: [...prev.workflowSteps.slice(-9), step] // Keep last 10 steps
         }));
         break;
+      }
 
-      case 'stats_update':
+      case 'stats_update': {
+        const statsData = message.data as Partial<WebSocketState['stats']>;
         setState(prev => ({
           ...prev,
-          stats: { ...prev.stats, ...message.data }
+          stats: { ...prev.stats, ...statsData }
         }));
         break;
+      }
 
       case 'workflow_started':
         // Reset workflow steps for new workflow

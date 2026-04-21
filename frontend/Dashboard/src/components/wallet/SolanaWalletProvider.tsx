@@ -13,6 +13,39 @@ import React, { createContext, useContext, useState, useCallback, ReactNode } fr
 import { shortenAddress, getSolBalance, SOLANA_NETWORK } from '@/lib/solana';
 
 // ============================================================================
+// Browser Wallet Type Augmentation
+// No official @types packages for Phantom/Solflare/MetaMask extensions.
+// Typed minimally here so we avoid all `any` casts.
+// ============================================================================
+
+interface PhantomProvider {
+  isPhantom: boolean;
+  connect: () => Promise<{ publicKey: { toString: () => string } }>;
+  disconnect: () => Promise<void>;
+  signMessage: (msg: Uint8Array) => Promise<{ signature: Uint8Array }>;
+  publicKey?: { toString: () => string };
+}
+
+interface SolflareProvider {
+  isSolflare: boolean;
+  connect: () => Promise<void>;
+  publicKey?: { toString: () => string };
+}
+
+interface EthereumProvider {
+  isMetaMask?: boolean;
+  request: (args: { method: string; params?: unknown }) => Promise<unknown>;
+}
+
+declare global {
+  interface Window {
+    solana?: PhantomProvider;
+    solflare?: SolflareProvider;
+    ethereum?: EthereumProvider;
+  }
+}
+
+// ============================================================================
 // Wallet Context
 // ============================================================================
 
@@ -75,7 +108,7 @@ const METAMASK_SOLANA_SNAP_ID = 'npm:@solana/metamask-snap';
  * Returns a Solana base58 public key, or null if unavailable.
  */
 async function connectMetaMaskSnap(): Promise<string | null> {
-  const mm = (window as any)?.ethereum;
+  const mm = window.ethereum;
   if (!mm?.isMetaMask) return null;
 
   try {
@@ -128,7 +161,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
     
     try {
       // Try real Phantom wallet first
-      const phantom = (window as any)?.solana;
+      const phantom = window.solana;
       if (phantom?.isPhantom && !walletName) {
         try {
           const resp = await phantom.connect();
@@ -151,7 +184,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
       }
 
       // Try Solflare
-      const solflare = (window as any)?.solflare;
+      const solflare = window.solflare;
       if (solflare?.isSolflare && walletName === 'Solflare') {
         try {
           await solflare.connect();
@@ -177,7 +210,9 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
       if (walletName === 'MetaMask') {
         const snapPubkey = await connectMetaMaskSnap();
         if (snapPubkey) {
-          const balance = await getSolBalance({ toString: () => snapPubkey } as any).catch(() => 0);
+          // Get SOL balance via RPC — getSolBalance expects a PublicKey-like object
+          let balance = 0;
+          try { balance = await getSolBalance({ toString: () => snapPubkey } as Parameters<typeof getSolBalance>[0]); } catch { /* no balance */ }
           setWalletState({
             connected: true,
             publicKey: snapPubkey,
@@ -216,7 +251,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
 
   const disconnect = useCallback(() => {
     // Try to disconnect real wallet
-    const phantom = (window as any)?.solana;
+    const phantom = window.solana;
     if (phantom?.isPhantom) phantom.disconnect().catch(() => {});
     
     setWalletState({
@@ -231,7 +266,7 @@ export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
   }, []);
 
   const signMessage = useCallback(async (message: string): Promise<string | null> => {
-    const phantom = (window as any)?.solana;
+    const phantom = window.solana;
     if (phantom?.isPhantom && walletState.connected) {
       try {
         const encoded = new TextEncoder().encode(message);
@@ -311,7 +346,7 @@ export function WalletButton() {
           </div>
           {DEMO_WALLETS.map(w => {
             const isMetaMask = w.name === 'MetaMask';
-            const mmInstalled = isMetaMask && !!(window as any)?.ethereum?.isMetaMask;
+            const mmInstalled = isMetaMask && !!(window.ethereum?.isMetaMask);
             return (
               <button
                 key={w.name}

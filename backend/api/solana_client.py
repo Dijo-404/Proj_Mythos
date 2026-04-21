@@ -59,6 +59,13 @@ RPC_URL = (
 # Anchor discriminator for initialize_loan = sha256("global:initialize_loan")[:8]
 INITIALIZE_LOAN_DISCRIMINATOR: bytes = hashlib.sha256(b"global:initialize_loan").digest()[:8]
 
+# Well-known program IDs
+SPL_TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+SPL_RENT_SYSVAR_ID  = "SysvarRent111111111111111111111111111111111"
+
+# USDC mint on devnet
+USC_MINT_DEVNET = os.getenv("USDC_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+
 
 # ============================================================================
 # Keypair Management
@@ -229,27 +236,73 @@ async def initialize_loan_tx(
             "Run /api/solana/generate-keypair to create one, then fund it with airdrop."
         )
 
-    program_id = Pubkey.from_string(MYTHOS_PROGRAM_ID)
-    borrower   = Pubkey.from_string(borrower_pubkey)
-    payer      = signer.pubkey()
+    program_id   = Pubkey.from_string(MYTHOS_PROGRAM_ID)
+    borrower_pub = Pubkey.from_string(borrower_pubkey)
+    payer        = signer.pubkey()  # payer signs as borrower for devnet demo
 
-    # Derive loan PDA: seeds = [b"loan", borrower]
-    loan_pda, _ = Pubkey.find_program_address(
-        [b"loan", bytes(borrower)], program_id
+    amount_usdc_le = struct.pack("<Q", amount_usdc_lamports)  # 8 bytes LE
+
+    # --------------------------------------------------------
+    # PDA derivation — MUST match lib.rs exactly:
+    #   seeds = [b"loan", borrower.key().as_ref(), &amount_usdc.to_le_bytes()]
+    # --------------------------------------------------------
+    loan_pda, _loan_bump = Pubkey.find_program_address(
+        [b"loan", bytes(borrower_pub), amount_usdc_le],
+        program_id,
     )
 
+    # seeds = [b"vault", borrower.key().as_ref(), &amount_usdc.to_le_bytes()]
+    vault_pda, _vault_bump = Pubkey.find_program_address(
+        [b"vault", bytes(borrower_pub), amount_usdc_le],
+        program_id,
+    )
+
+    # collateral_mint — USDC on devnet (the borrower's collateral token)
+    collateral_mint = Pubkey.from_string(USC_MINT_DEVNET)
+
+    # The borrower's USDC ATA (must exist and be funded before calling this)
+    # ATA = Associated Token Account PDA:
+    #   seeds = [owner, token_program, mint]  via associated-token-account program
+    # We pass payer's ATA here; in production the frontend supplies the real ATA.
+    spl_token_prog = Pubkey.from_string(SPL_TOKEN_PROGRAM_ID)
+    rent_sysvar    = Pubkey.from_string(SPL_RENT_SYSVAR_ID)
+
+    borrower_usdc_ata, _ = Pubkey.find_program_address(
+        [
+            bytes(payer),
+            bytes(spl_token_prog),
+            bytes(collateral_mint),
+        ],
+        Pubkey.from_string("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bwW"),  # ATA program
+    )
+
+    # --------------------------------------------------------
     # Instruction data
+    # --------------------------------------------------------
     ix_data = build_initialize_loan_data(
         amount_usdc_lamports, initial_rate_bps, term_months, att_bytes
     )
 
-    # Minimal accounts (borrower + loan PDA + system program)
-    # NOTE: collateral vault accounts would also be needed for a full tx.
-    # For the demo endpoint we pass borrower as both borrower and signer.
+    # --------------------------------------------------------
+    # Account layout — must match InitializeLoan<'info> in lib.rs:
+    #  0. loan                      writable, PDA (init)
+    #  1. collateral_vault          writable, PDA (init, TokenAccount)
+    #  2. borrower_collateral_acct  writable (borrower's USDC ATA)
+    #  3. collateral_mint           readonly
+    #  4. borrower                  signer, writable (pays rent)
+    #  5. token_program             readonly
+    #  6. system_program            readonly
+    #  7. rent                      readonly (sysvar)
+    # --------------------------------------------------------
     accounts = [
-        AccountMeta(pubkey=payer,      is_signer=True,  is_writable=True),   # payer/borrower
-        AccountMeta(pubkey=loan_pda,   is_signer=False, is_writable=True),   # loan PDA
-        AccountMeta(pubkey=SYS_PROGRAM_ID, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=loan_pda,          is_signer=False, is_writable=True),   # 0 loan
+        AccountMeta(pubkey=vault_pda,         is_signer=False, is_writable=True),   # 1 collateral_vault
+        AccountMeta(pubkey=borrower_usdc_ata, is_signer=False, is_writable=True),   # 2 borrower_collateral_account
+        AccountMeta(pubkey=collateral_mint,   is_signer=False, is_writable=False),  # 3 collateral_mint
+        AccountMeta(pubkey=payer,             is_signer=True,  is_writable=True),   # 4 borrower (signer + payer)
+        AccountMeta(pubkey=spl_token_prog,    is_signer=False, is_writable=False),  # 5 token_program
+        AccountMeta(pubkey=SYS_PROGRAM_ID,    is_signer=False, is_writable=False),  # 6 system_program
+        AccountMeta(pubkey=rent_sysvar,       is_signer=False, is_writable=False),  # 7 rent
     ]
 
     ix = Instruction(program_id=program_id, data=ix_data, accounts=accounts)
@@ -264,6 +317,8 @@ async def initialize_loan_tx(
     tx_b64   = base64.b64encode(tx_bytes).decode()
 
     print(f"[SolanaClient] 📤 Sending initialize_loan tx to {SOLANA_NETWORK}...")
+    print(f"[SolanaClient]    loan_pda  = {loan_pda}")
+    print(f"[SolanaClient]    vault_pda = {vault_pda}")
     sig = await send_transaction(tx_b64)
     confirmed = await confirm_transaction(sig)
 
@@ -271,12 +326,13 @@ async def initialize_loan_tx(
 
     return {
         "signature": sig,
-        "slot": None,  # fill from confirmTransaction if needed
+        "slot": None,
         "explorer_url": f"https://explorer.solana.com/tx/{sig}?cluster={SOLANA_NETWORK}",
         "demo": False,
         "confirmed": confirmed,
         "program_id": MYTHOS_PROGRAM_ID,
         "loan_pda": str(loan_pda),
+        "collateral_vault": str(vault_pda),
         "amount_usdc": amount_usdc_ui,
         "rate_bps": initial_rate_bps,
         "term_months": term_months,

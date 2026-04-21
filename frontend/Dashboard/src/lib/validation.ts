@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Input Validation and Sanitization
  * Validates and sanitizes user inputs before submission
  */
@@ -16,6 +16,7 @@ export function sanitizeString(input: string): string {
   // Remove null bytes and control characters
   return input
     .replace(/\0/g, '')
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x1F\x7F]/g, '')
     .trim();
 }

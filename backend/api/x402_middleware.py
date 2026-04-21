@@ -220,34 +220,53 @@ async def verify_solana_tx_helius(signature: str, path: str) -> bool:
 async def x402_middleware(request: Request, call_next):
     """
     FastAPI middleware that enforces x402 payment gates.
-    
-    Protected routes return HTTP 402 unless a valid X-PAYMENT header is present.
+
+    Accepts TWO payment header styles:
+      1. X-PAYMENT: base64(JSON({network, payload/signature, scheme}))
+         — classic x402 protocol, verified via Helius on-chain
+      2. X-Payment-Signature: <raw Solana tx signature>
+         — new direct-sig style; stored on request.state.payment_sig
+         — the route handler (/api/agent/evaluate) does its own on-chain
+           verify via solana_client.verify_usdc_transfer()
+
+    In demo mode (X402_DEMO_MODE=true) all paths pass through.
     """
     path = request.url.path
 
-    # Check if this path requires payment
-    if path in PAYMENT_REQUIRED_PATHS:
-        payment_header = request.headers.get("X-PAYMENT")
+    demo_mode = os.getenv("X402_DEMO_MODE", "true").lower() == "true"
 
-        if not payment_header:
+    if path in PAYMENT_REQUIRED_PATHS:
+        payment_header  = request.headers.get("X-PAYMENT", "")
+        payment_sig_hdr = request.headers.get("X-Payment-Signature", "")
+
+        if demo_mode:
+            # Demo mode: pass through, but tag state so route can see it
+            request.state.payment_sig  = payment_sig_hdr or None
+            request.state.payment_demo = True
+        elif payment_sig_hdr:
+            # New style: route handler owns verification — just pass the sig
+            request.state.payment_sig  = payment_sig_hdr
+            request.state.payment_demo = False
+            print(f"[x402] X-Payment-Signature present for {path} — deferring to route verifier")
+        elif payment_header:
+            # Classic style: verify in middleware
+            payment_info = await verify_payment_header(payment_header, path)
+            if not payment_info:
+                return JSONResponse(
+                    status_code=402,
+                    content={
+                        "error": "Payment Invalid",
+                        "message": "Payment verification failed. Provide a valid Solana transaction."
+                    }
+                )
+            print(f"[x402] ✅ Classic X-PAYMENT verified for {path}")
+            request.state.payment     = payment_info
+            request.state.payment_sig = payment_info.get("signature")
+            request.state.payment_demo = False
+        else:
             required_amount = PAYMENT_REQUIRED_PATHS[path]
             print(f"[x402] 💸 Payment required for {path} ({required_amount} USDC-lamports)")
             return build_402_response(path, required_amount)
-
-        # Verify the payment
-        payment_info = await verify_payment_header(payment_header, path)
-        if not payment_info:
-            return JSONResponse(
-                status_code=402,
-                content={
-                    "error": "Payment Invalid",
-                    "message": "Payment verification failed. Please provide a valid Solana transaction."
-                }
-            )
-
-        print(f"[x402] ✅ Payment verified for {path}")
-        # Add payment info to request state for route handlers
-        request.state.payment = payment_info
 
     response = await call_next(request)
     return response

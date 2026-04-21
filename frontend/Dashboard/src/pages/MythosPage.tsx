@@ -391,9 +391,9 @@ function HeliusFeedTicker({ events }: { events: HeliusLoanEvent[] }) {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-gray-800 py-2 px-4">
       <div className="max-w-7xl mx-auto flex items-center gap-4 text-xs text-gray-400">
-        <span className="text-green-400 font-medium whitespace-nowrap flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          Helius Live
+        <span className="text-yellow-500 font-medium whitespace-nowrap flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+          Helius Feed (demo)
         </span>
         <AnimatePresence mode="wait">
           <motion.div
@@ -430,7 +430,9 @@ export default function MythosPage() {
   const [loanParams, setLoanParams] = useState<LoanParams>({ amount: 1000, termMonths: 12, collateral: 'SOL' });
   const [view, setView] = useState<'hero' | 'demo'>('hero');
 
-  // Simulate Helius event stream with live-looking slot numbers
+  // Demo event stream: these are NOT real on-chain events.
+  // They simulate what a real Helius webhook would emit after a live negotiate+settle.
+  // To receive real events: set HELIUS_API_KEY and use Helius webhook → POST /api/helius/event.
   useEffect(() => {
     const baseSlot = 456903617;
     const events: HeliusLoanEvent[] = [

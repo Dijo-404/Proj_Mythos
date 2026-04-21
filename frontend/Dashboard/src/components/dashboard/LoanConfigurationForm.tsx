@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Simplified Loan Configuration Form
  * Clean, minimal form for loan parameters
  */
@@ -16,10 +16,23 @@ import {
     CheckCircle2
 } from 'lucide-react';
 
+interface LoanFormData {
+    role: 'borrower' | 'lender';
+    walletAddress: string;
+    principal: number;
+    interestRate: number;
+    termMonths: number;
+    creditScore: number;
+    stablecoin: string;
+    autoConfirm: boolean;
+    lenderAddress?: string;
+    borrowerAddress?: string;
+}
+
 interface LoanConfigurationFormProps {
     role: 'borrower' | 'lender';
     walletAddress: string;
-    onSubmit: (data: any) => void;
+    onSubmit: (data: LoanFormData) => void;
 }
 
 export function LoanConfigurationForm({ role, walletAddress, onSubmit }: LoanConfigurationFormProps) {

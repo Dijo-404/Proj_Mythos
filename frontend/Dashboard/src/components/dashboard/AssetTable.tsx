@@ -1,6 +1,7 @@
-﻿import { motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowRight, Coins } from "lucide-react";
 import { StablecoinLogo } from "@/lib/stablecoinLogos";
+import type { Stablecoin } from "@/components/dashboard/StablecoinSelector";
 
 interface Asset {
   id: string;
@@ -74,7 +75,7 @@ export const AssetTable = () => {
             <div className="flex items-center gap-4 flex-1">
               <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center overflow-hidden">
                 {['USDT', 'USDC', 'DAI', 'TUSD', 'BUSD', 'USDD'].includes(asset.symbol) ? (
-                  <StablecoinLogo symbol={asset.symbol as any} size={40} />
+                  <StablecoinLogo symbol={asset.symbol as Stablecoin} size={40} />
                 ) : (
                   <span className="text-xl">{asset.icon}</span>
                 )}

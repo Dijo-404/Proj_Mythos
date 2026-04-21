@@ -1,0 +1,6 @@
+
+# Environment files — never commit secrets
+.env
+.env.*
+frontend/Dashboard/.env
+frontend/Dashboard/.env.*

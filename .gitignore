@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dependencies
 node_modules/
 
@@ -38,3 +39,32 @@ npm-debug.log*
 
 # OS files
 Thumbs.db
+=======
+﻿
+# Environment files - never commit secrets
+.env
+.env.*
+frontend/Dashboard/.env
+frontend/Dashboard/.env.*
+
+# Rust / Anchor build artifacts
+target/
+
+# Solana / Anchor generated deploy keypairs
+target/deploy/*.json
+
+# Frontend build + lockfile + cache
+frontend/Dashboard/dist/
+frontend/Dashboard/node_modules/
+frontend/Dashboard/package-lock.json
+frontend/Dashboard/tsconfig.app.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Cargo off-source verify dirs
+target_verify/
+>>>>>>> downloads/main

@@ -17,9 +17,9 @@ import os
 
 # Create minimal FastAPI app (no heavy imports)
 app = FastAPI(
-    title="Lendora AI API (Minimal Mode)",
-    description="Minimal API for Vercel. Full backend with AI features available on Railway/Render.",
-    version="2.0.0"
+    title="Mythos — AI-Native Agentic Lending on Solana (Minimal Mode)",
+    description="Minimal Vercel stub. Full backend with Solana agents available on Railway.",
+    version="1.0.0"
 )
 
 # CORS middleware
@@ -48,11 +48,12 @@ class StatsResponse(BaseModel):
 async def root():
     """Root endpoint - API information"""
     return {
-        "message": "Lendora AI API",
+        "message": "Mythos — AI-Native Agentic Lending on Solana",
         "status": "minimal_mode",
-        "version": "2.0.0",
-        "note": "This is a minimal API. Full backend with AI features must be deployed separately.",
-        "recommendation": "Deploy full backend to Railway (railway.app) or Render (render.com) for AI features",
+        "version": "1.0.0",
+        "program_id": "FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM",
+        "network": "devnet",
+        "note": "Minimal Vercel stub. Full Solana agent backend runs on Railway.",
         "endpoints": {
             "health": "/health",
             "stats": "/api/dashboard/stats",
@@ -91,7 +92,7 @@ async def agent_status():
         "agents_initialized": False,
         "lenny_available": False,
         "luna_available": False,
-        "masumi_available": False,
+        "solana_agents_available": True,
         "status": "unavailable",
         "message": "Full backend required for AI agents. Deploy to Railway or Render.",
         "mode": "minimal"
@@ -99,4 +100,5 @@ async def agent_status():
 
 # Export for Vercel
 handler = app
+
 

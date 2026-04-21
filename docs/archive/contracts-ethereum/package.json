@@ -1,0 +1,21 @@
+{
+  "name": "lendora-ethereum-contracts",
+  "version": "1.0.0",
+  "description": "Lendora AI Ethereum smart contracts",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:testnet": "hardhat run scripts/deploy.js --network arbitrum-testnet",
+    "deploy:mainnet": "hardhat run scripts/deploy.js --network arbitrum-mainnet"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "circomlib": "^2.0.5",
+    "snarkjs": "^0.7.2"
+  }
+}
+

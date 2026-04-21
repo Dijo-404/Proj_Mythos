@@ -54,17 +54,18 @@ pub mod mythos {
         loan.final_rate_bps = 0; // Set when loan is accepted
         loan.term_months = term_months;
         loan.attestation_id = attestation_id;
-        loan.collateral_amount = ctx.accounts.collateral_vault.amount;
+        // Transfer collateral to vault — read amount BEFORE transfer, record in state
+        let collateral_amount = ctx.accounts.borrower_collateral_account.amount;
+        require!(collateral_amount > 0, MythosError::NoCollateral);
+
+        // Record AFTER reading from borrower account — captures actual deposited amount
+        loan.collateral_amount = collateral_amount;
         loan.status = LoanStatus::Pending;
         loan.created_at = clock.unix_timestamp;
         loan.due_at = 0; // Set when loan is accepted
         loan.negotiation_rounds = 0;
         loan.bump = ctx.bumps.loan;
         // vault_bump not stored — CPI signs with loan PDA seeds (authority = loan)
-
-        // Transfer collateral to vault
-        let collateral_amount = ctx.accounts.borrower_collateral_account.amount;
-        require!(collateral_amount > 0, MythosError::NoCollateral);
 
         let transfer_ctx = CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -304,9 +305,9 @@ impl LoanAccount {
     // discriminator(8) + borrower(32) + lender(32) + amount_usdc(8)
     // + initial_rate_bps(2) + final_rate_bps(2) + term_months(1)
     // + negotiation_rounds(1) + collateral_amount(8) + attestation_id(32)
-    // + status(1+1) + created_at(8) + accepted_at(8) + due_at(8)
-    // + repaid_at(8) + bump(1)
-    pub const LEN: usize = 8 + 32 + 32 + 8 + 2 + 2 + 1 + 1 + 8 + 32 + 2 + 8 + 8 + 8 + 8 + 1;
+    // + status(1) + created_at(8) + accepted_at(8) + due_at(8)
+    // + repaid_at(8) + bump(1) = 162
+    pub const LEN: usize = 8 + 32 + 32 + 8 + 2 + 2 + 1 + 1 + 8 + 32 + 1 + 8 + 8 + 8 + 8 + 1; // = 162
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Default, PartialEq)]

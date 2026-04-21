@@ -42,25 +42,52 @@ curl -X POST https://mythos-api.railway.app/api/solana/workflow/start \
 > No wallet needed — click **⚡ One-Click Demo** on the live app to watch Lenny × Luna negotiate a loan instantly.
 
 
-## ✅ What is Real on Devnet
+## ✅ Real vs ⚙️ Simulated — Judge Reference
 
-| Layer | Status | Detail |
-|---|---|---|
-| **Anchor Program** | ✅ Live | [FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM](https://explorer.solana.com/address/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet) — BPFLoaderUpgradeable, executable |
-| **Deploy TX** | ✅ On-chain | [3twz9fk...↗](https://explorer.solana.com/tx/3twz9fkqZWktXGXukqGZqrwJLpY41A8iLmjyPN3TwWP4J4fobtUYNZPbshxkS6cdDqCAAT8t3xVFE8zw3y5TBrig?cluster=devnet) |
-| **Instructions** | ✅ Implemented | `initialize_loan` · `accept_loan` · `repay_loan` · `liquidate` · `update_attestation` |
-| **x402 Payments** | ⚡ Demo mode | Simulated by default. Set `X402_DEMO_MODE=false` + Helius key for real on-chain verification |
-| **SAS Attestations** | ⚡ Demo mode | SAS-compatible schema. Set `SAS_DEMO_MODE=false` for on-chain PDA submission |
-| **Jupiter Prices** | ✅ Live | `/api/solana/price/SOL` — real Jupiter Price API v6 |
-| **Helius Feed** | ✅ Live | Real Devnet slot numbers via Helius Enhanced RPC |
+> There are no lies here. Every simulated item is labeled as such and has an explicit env var to make it real.
 
-### x402 Machine Payments
-Agents exchange HTTP 402 challenge/response micropayments when calling each other's AI services.
-Demo mode simulates payment confirmation locally. Real mode: `X402_DEMO_MODE=false` + valid `HELIUS_API_KEY` → Helius webhook confirms USDC transfer on-chain before releasing agent response.
+### Always Real (no config needed)
 
-### SAS Credit Attestations
-Borrower credit scores use a SAS-compatible on-chain PDA schema (`[b"attestation", borrower_pubkey]`).
-Demo mode issues attestations locally. Real mode: `SAS_DEMO_MODE=false` submits to Solana Devnet PDA.
+| Feature | Evidence |
+|---|---|
+| **Anchor program deployed** | [`FGG8363...`](https://explorer.solana.com/address/FGG8363rUtdVernzHtXr4AD9PS9m4BezgAN8MJKcybpM?cluster=devnet) — BPFLoaderUpgradeable, executable on devnet |
+| **Deploy transaction** | [`3twz9fk...↗`](https://explorer.solana.com/tx/3twz9fkqZWktXGXukqGZqrwJLpY41A8iLmjyPN3TwWP4J4fobtUYNZPbshxkS6cdDqCAAT8t3xVFE8zw3y5TBrig?cluster=devnet) |
+| **All 5 Anchor instructions** | `initialize_loan`, `accept_loan`, `repay_loan`, `liquidate`, `update_attestation` — compiled, deployed |
+| **Jupiter SOL price** | `GET /api/solana/price/SOL` → live Jupiter Price API v6, no key needed |
+| **AI agent negotiation** | Lenny × Luna use Groq LLM (real inference) when `GROQ_API_KEY` is set |
+
+### Simulated by Default — Real with Env Vars
+
+| Feature | Default | To make real | Real behavior |
+|---|---|---|---|
+| **`initialize_loan` tx** | Returns `SIM_INIT_LOAN_*` sig | `SOLANA_DEMO_MODE=false` + `BACKEND_SIGNER_KEYPAIR` | Builds + signs + broadcasts Anchor instruction to devnet via Helius RPC |
+| **x402 USDC verification** | `payment_verified: "demo"` | `X402_DEMO_MODE=false` + `HELIUS_API_KEY` | Calls `getTransaction` on-chain, parses USDC postTokenBalances, requires ≥ 0.001 USDC |
+| **SAS credit attestation** | Local in-memory PDA | `SAS_DEMO_MODE=false` | Submits `[b"attestation", borrower_pubkey]` PDA to Solana Devnet |
+| **Helius slot/price feed** | Increments local counter | `HELIUS_API_KEY=<your-key>` | Real devnet slot via `getSlot` RPC; frontend polls every 10s and shows (live) badge |
+| **Agent negotiation tx** | `SIM_WORKFLOW_*` signature | `SOLANA_DEMO_MODE=false` | Broadcasts `accept_loan` instruction after Lenny × Luna reach consensus |
+
+### Setup for Real Mode (step by step)
+
+```bash
+# 1. Get a Helius API key (free tier) → helius.dev
+# 2. Generate backend signer keypair:
+curl https://mythos-api.railway.app/api/solana/generate-keypair
+
+# 3. Fund it (devnet faucet):
+solana airdrop 1 <pubkey from step 2> --url devnet
+
+# 4. Add to Railway env vars:
+SOLANA_DEMO_MODE=false
+X402_DEMO_MODE=false
+HELIUS_API_KEY=<your-key>
+BACKEND_SIGNER_KEYPAIR=<secret_b58 from step 2>
+
+# 5. Trigger a real initialize_loan tx:
+curl -X POST https://mythos-api.railway.app/api/solana/initialize-loan \
+  -H "Content-Type: application/json" \
+  -d '{"borrower_pubkey":"<any devnet pubkey>","amount_usdc":1000,"initial_rate_bps":950,"term_months":12}'
+# → returns {"signature":"<real devnet sig>","explorer_url":"...","demo":false}
+```
 
 ---
 

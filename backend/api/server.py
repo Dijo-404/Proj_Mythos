@@ -1,4 +1,4 @@
-﻿
+
 # =============================================================================
 # DEMO MODE NOTICE
 # When SOLANA_DEMO_MODE=true (default), x402 payment confirmation and Solana
@@ -57,6 +57,23 @@ except ImportError as e:
     print(f"[WARNING] Credit oracle not available: {e}")
 
 
+# Import Solana on-chain client
+try:
+    from backend.api.solana_client import (
+        initialize_loan_tx,
+        verify_usdc_transfer,
+        generate_and_print_keypair,
+        DEMO_MODE as SOLANA_DEMO_MODE_REAL,
+    )
+    SOLANA_CLIENT_AVAILABLE = True
+except ImportError as e:
+    SOLANA_CLIENT_AVAILABLE = False
+    SOLANA_DEMO_MODE_REAL = True
+    print(f"[WARNING] solana_client not available: {e}")
+
+X402_DEMO_MODE = os.getenv("X402_DEMO_MODE", "true").lower() == "true"
+
+
 # ============================================================================
 # Application Setup
 # ============================================================================
@@ -71,13 +88,12 @@ async def lifespan(app: FastAPI):
     display_host = "localhost" if host == "0.0.0.0" else host
 
     print("=" * 70)
-    print("Lendora AI Backend API Started")
+    print("Mythos — AI-Native Agentic Lending on Solana")
     print("=" * 70)
     print(f"REST API:    http://{display_host}:{port}")
     print(f"WebSocket:   ws://{display_host}:{port}/ws")
     print(f"Docs:        http://{display_host}:{port}/docs")
-    print("=" * 70)
-    print("Note: Actual port shown in uvicorn startup message above")
+    print(f"Demo mode:   SOLANA_DEMO_MODE={os.getenv('SOLANA_DEMO_MODE','true')} | X402_DEMO_MODE={os.getenv('X402_DEMO_MODE','true')}")
     print("=" * 70)
 
         
@@ -1417,12 +1433,50 @@ class AgentEvaluationRequest(BaseModel):
 @app.post("/api/agent/evaluate")
 async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
     """
-    x402-protected endpoint: AI evaluation of loan request.
-    Requires X-PAYMENT header with valid Solana USDC transaction.
+    x402-protected endpoint: AI evaluation of a loan request.
+
+    When X402_DEMO_MODE=false:
+      - Reads X-Payment-Signature header
+      - Verifies >= 0.001 USDC was transferred on-chain via Helius RPC
+      - Returns payment_verified=true only if confirmed
+
+    When X402_DEMO_MODE=true (default):
+      - Skips verification, returns payment_verified="demo"
     """
-    payment = getattr(request.state, "payment", None)
-    
-    # Get SAS attestation for borrower
+    # --- x402 Payment Verification ---
+    payment_sig = request.headers.get("X-Payment-Signature", "")
+    x402_result: dict = {}
+
+    if X402_DEMO_MODE:
+        x402_result = {
+            "verified": True,
+            "demo": True,
+            "signature": payment_sig or "demo",
+            "note": "Set X402_DEMO_MODE=false + HELIUS_API_KEY for real USDC verification",
+        }
+    elif not payment_sig:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "Payment required",
+                "message": "Provide X-Payment-Signature header with a USDC transfer tx signature",
+                "min_amount_usdc": 0.001,
+                "usdc_mint": os.getenv("USDC_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"),
+            }
+        )
+    else:
+        if SOLANA_CLIENT_AVAILABLE:
+            x402_result = await verify_usdc_transfer(payment_sig)
+        else:
+            x402_result = {"verified": False, "error": "solana_client unavailable", "signature": payment_sig}
+
+        if not x402_result.get("verified"):
+            raise HTTPException(
+                status_code=402,
+                detail={"error": "Payment verification failed", **x402_result}
+            )
+
+    # --- SAS Attestation Lookup ---
     attestation_data = {"tier": "A", "rate_bps": 950}
     if SAS_AVAILABLE:
         try:
@@ -1431,14 +1485,19 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
                 attestation_data = {"tier": att.credit_tier, "rate_bps": att.interest_rate_bps}
         except Exception:
             pass
-    
-    # Jupiter price for collateral
+
+    # --- Jupiter Price for Collateral ---
     collateral_price = 180.50
-    
-    # Compute LTV and recommended rate
+    try:
+        async with __import__('httpx').AsyncClient(timeout=4) as client:
+            r = await client.get("https://price.jup.ag/v6/price?ids=So11111111111111111111111111111111111111112")
+            collateral_price = r.json()["data"]["So11111111111111111111111111111111111111112"]["price"]
+    except Exception:
+        pass
+
     collateral_usdc = collateral_price * (req.amount_usdc / collateral_price)
     ltv = req.amount_usdc / collateral_usdc if collateral_usdc > 0 else 1.0
-    
+
     result = {
         "eligible": True,
         "borrower": req.borrower_pubkey[:20] + "...",
@@ -1447,23 +1506,93 @@ async def agent_evaluate(req: AgentEvaluationRequest, request: Request):
         "recommended_rate_bps": attestation_data["rate_bps"],
         "recommended_rate_pct": attestation_data["rate_bps"] / 100,
         "collateral_token": req.collateral_token,
-        "collateral_price_usd": collateral_price,
+        "collateral_price_usd": round(collateral_price, 2),
         "ltv_pct": round(ltv * 100, 2),
-        "payment_verified": payment is not None,
-        "x402_signature": payment.get("signature", "demo") if payment else "no_payment",
+        "payment_verified": "demo" if x402_result.get("demo") else True,
+        "x402_signature": x402_result.get("signature", "none"),
+        "x402_amount_usdc": x402_result.get("amount", 0.001),
+        "x402_demo_mode": X402_DEMO_MODE,
         "timestamp": datetime.utcnow().isoformat(),
     }
-    
+
     await manager.broadcast({
         "type": "agent_evaluation",
         "data": {
             "borrower": req.borrower_pubkey[:16] + "...",
             "tier": attestation_data["tier"],
             "rate": attestation_data["rate_bps"] / 100,
-            "x402_verified": payment is not None,
+            "x402_verified": not x402_result.get("demo"),
         }
     })
     return result
+
+
+# ============================================================================
+# Solana On-Chain Endpoints
+# ============================================================================
+
+class InitializeLoanRequest(BaseModel):
+    borrower_pubkey: str
+    amount_usdc: float
+    initial_rate_bps: int = 950
+    term_months: int = 12
+    attestation_id: str = "att_demo_000000000000000000000000"
+
+@app.post("/api/solana/initialize-loan")
+async def solana_initialize_loan(req: InitializeLoanRequest):
+    """
+    Submit a real initialize_loan instruction to Solana Devnet.
+
+    Demo mode (SOLANA_DEMO_MODE=true, default):
+      Returns a simulated signature — no real tx sent.
+
+    Real mode (SOLANA_DEMO_MODE=false):
+      Requires BACKEND_SIGNER_KEYPAIR env var (funded devnet keypair).
+      Builds + signs + sends the Anchor instruction, returns on-chain signature.
+
+    Setup:
+      1. GET /api/solana/generate-keypair → copy BACKEND_SIGNER_KEYPAIR
+      2. solana airdrop 1 <pubkey> --url devnet
+      3. Set SOLANA_DEMO_MODE=false in Railway
+    """
+    if not SOLANA_CLIENT_AVAILABLE:
+        import time
+        return {"error": "solana_client not available", "demo": True,
+                "signature": f"SIM_LOAN_{int(time.time())}"}
+    try:
+        result = await initialize_loan_tx(
+            borrower_pubkey=req.borrower_pubkey,
+            amount_usdc_ui=req.amount_usdc,
+            initial_rate_bps=req.initial_rate_bps,
+            term_months=req.term_months,
+            attestation_id_str=req.attestation_id,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={
+            "error": str(e),
+            "hint": "Check BACKEND_SIGNER_KEYPAIR and devnet SOL balance",
+        })
+
+
+@app.get("/api/solana/generate-keypair")
+async def solana_generate_keypair():
+    """
+    Generate a new devnet keypair for the backend signer.
+    Run ONCE during setup, then fund: solana airdrop 1 <pubkey> --url devnet
+    Store the secret_b58 in BACKEND_SIGNER_KEYPAIR Railway env var.
+    """
+    if not SOLANA_CLIENT_AVAILABLE:
+        return {"error": "solana_client not available — install solders + base58"}
+    result = generate_and_print_keypair()
+    return {
+        "pubkey": result.get("pubkey"),
+        "fund_command": f"solana airdrop 1 {result.get('pubkey')} --url devnet",
+        "env_key": "BACKEND_SIGNER_KEYPAIR",
+        "env_hint": "Add to Railway Variables → BACKEND_SIGNER_KEYPAIR=<secret_b58>",
+        "warning": "Keep secret_b58 private — never commit to git",
+        "next_step": "After funding: set SOLANA_DEMO_MODE=false and redeploy",
+    }
 
 
 class AgentNegotiateRequest(BaseModel):

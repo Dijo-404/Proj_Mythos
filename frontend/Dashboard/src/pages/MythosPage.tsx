@@ -29,6 +29,54 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // ============================================================================
+// useNetworkStats — polls /api/solana/network every 10s
+// Falls back to demo values if backend unreachable
+// ============================================================================
+
+interface NetworkStats {
+  current_slot: number;
+  sol_price_usd: number;
+  tps: number;
+  demo_mode: boolean;
+  rpc: string;
+}
+
+function useNetworkStats(): NetworkStats {
+  const [stats, setStats] = React.useState<NetworkStats>({
+    current_slot: 0,
+    sol_price_usd: 180.5,
+    tps: 4000,
+    demo_mode: true,
+    rpc: 'demo',
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/solana/network`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setStats({
+            current_slot: data.current_slot ?? 0,
+            sol_price_usd: data.sol_price_usd ?? 180.5,
+            tps: data.tps ?? 4000,
+            demo_mode: data.demo_mode ?? true,
+            rpc: data.rpc ?? 'demo',
+          });
+        }
+      } catch { /* keep previous values */ }
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 10_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  return stats;
+}
+
+// ============================================================================
 // Header
 // ============================================================================
 
@@ -61,11 +109,8 @@ function MythosHeader() {
 
 function HeroSection({ onStart }: { onStart: () => void }) {
   const wallet = useWallet();
-  const [solPrice, setSolPrice] = useState<number>(180.5);
-
-  useEffect(() => {
-    getJupiterPrice('SOL').then(p => p && setSolPrice(p.priceUsd));
-  }, []);
+  const net = useNetworkStats();
+  const solPrice = net.sol_price_usd;
 
   return (
     <div className="text-center max-w-4xl mx-auto py-16 px-6">
@@ -104,7 +149,7 @@ function HeroSection({ onStart }: { onStart: () => void }) {
         Two AI agents negotiate your loan on Solana in real-time — paying each other in USDC via x402 — zero human clicks required.
       </motion.p>
 
-      {/* Stats */}
+      {/* Stats — live from /api/solana/network */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -113,11 +158,22 @@ function HeroSection({ onStart }: { onStart: () => void }) {
       >
         {[
           { label: 'SOL Price', value: `$${solPrice.toFixed(2)}`, icon: '◎', color: 'text-green-400' },
-          { label: 'TPS', value: '~4,000', icon: '⚡', color: 'text-yellow-400' },
-          { label: 'Settlement', value: '<1s', icon: '🚀', color: 'text-blue-400' },
+          {
+            label: 'TPS',
+            value: net.tps > 0 ? `~${(net.tps / 1000).toFixed(1)}k` : '~4.0k',
+            icon: '⚡',
+            color: 'text-yellow-400',
+          },
+          {
+            label: net.demo_mode ? 'Slot (demo)' : 'Slot (live)',
+            value: net.current_slot > 0 ? net.current_slot.toLocaleString() : '...',
+            icon: '📡',
+            color: net.demo_mode ? 'text-gray-500' : 'text-cyan-400',
+          },
           { label: 'Protocol', value: 'x402', icon: '💸', color: 'text-purple-400' },
         ].map(stat => (
           <div key={stat.label} className="flex items-center gap-2 text-gray-300">
+
             <span className={stat.color}>{stat.icon}</span>
             <span className="font-bold">{stat.value}</span>
             <span className="text-gray-500">{stat.label}</span>

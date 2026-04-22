@@ -121,16 +121,6 @@ Then:
 
 Every AI service call between agents is governed by **x402** - the HTTP 402 Payment Required standard for machine-to-machine payments. Agents autonomously pay each other in USDC on Solana. No human clicks required.
 
-### Why This Wins the Hackathon
-
-| Hackathon Theme | Mythos Implementation |
-|---|---|
-| **Agentic Commerce** | Lenny and Luna are autonomous CrewAI agents that negotiate, pay, and settle - zero human intervention |
-| **x402 Payments** | Every `/api/agent/*` endpoint requires a USDC micropayment in the `X-PAYMENT` header |
-| **Identity & Stablecoins** | Solana Attestation Service (SAS) for on-chain credit identity, USDC for all payments |
-| **Solana Performance** | Anchor program live on Devnet, Helius RPC, Jupiter price feeds, <400ms settlement |
-
----
 
 ## Architecture
 
